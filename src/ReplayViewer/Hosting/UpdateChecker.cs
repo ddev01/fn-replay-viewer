@@ -68,6 +68,7 @@ internal static class UpdateChecker
                 return;
             }
 
+            FileLog.Info($"update available: {tag} (current {AppConfig.Version})");
             var download = zipUrl;
             tray.NotifyUpdate(() => Apply(download));
         }
@@ -91,6 +92,7 @@ internal static class UpdateChecker
     {
         try
         {
+            FileLog.Info("applying update from " + zipUrl);
             var dir = Path.Combine(Path.GetTempPath(), "ReplayViewerUpdate", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(dir);
             var zipPath = Path.Combine(dir, "update.zip");
