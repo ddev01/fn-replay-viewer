@@ -189,13 +189,6 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
   border-radius: 10px;
   cursor: pointer;
 }
-.player img.skin {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: #0b0d12;
-  object-fit: cover;
-}
 .pname-row {
   display: flex;
   align-items: center;
