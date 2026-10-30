@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Replay Viewer</title>
+    <link rel="stylesheet" href="/app.css?v=7" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <button id="toggle-demos" type="button" aria-expanded="false" aria-controls="demos-panel">
+          Demos
+        </button>
+        <h1>Replay Viewer</h1>
+      </div>
+      <div class="actions">
+        <button id="scrape" type="button" class="primary">Scrape</button>
+        <button id="export" type="button" disabled>Export JSON</button>
+      </div>
+    </header>
+    <p id="status" class="status" hidden></p>
+    <div id="demos-backdrop" class="demos-backdrop" hidden></div>
+    <aside id="demos-panel" class="demos-panel" hidden>
+      <div class="demos-head">
+        <h2>Recent demos</h2>
+        <button id="close-demos" type="button" class="ghost">Close</button>
+      </div>
+      <ul id="demos"></ul>
+    </aside>
+    <main>
+      <section id="summary" class="summary" hidden></section>
+      <div class="toolbar">
+        <label class="search">
+          Search roster
+          <input id="search" type="search" placeholder="Player name" />
+        </label>
+        <div class="sort" role="group" aria-label="Sort teams">
+          <span class="sort-label">Sort teams</span>
+          <button type="button" id="sort-placement" class="active">Placement</button>
+          <button type="button" id="sort-kills">Kills</button>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="show-bots" />
+          Show bots
+        </label>
+      </div>
+      <div id="roster" class="roster"></div>
+      <section class="timelines" id="timeline-section">
+        <div class="tabs">
+          <button type="button" data-tab="game">Game</button>
+          <button type="button" data-tab="you" class="active">You</button>
+          <button type="button" data-tab="team">Team</button>
+        </div>
+        <div class="filters">
+          <label><input type="checkbox" id="hide-bots" checked /> Hide bots in timeline</label>
+          <label><input type="checkbox" id="only-you" /> Only fights that include you</label>
+          <span id="you-filters" hidden>
+            <label><input type="checkbox" id="flt-kills" checked /> Kills</label>
+            <label><input type="checkbox" id="flt-knocks" checked /> Knocks</label>
+            <label><input type="checkbox" id="flt-deaths" checked /> Deaths</label>
+          </span>
+          <span id="team-filters" hidden>
+            <label><input type="checkbox" id="team-kills" checked /> Kills</label>
+            <label><input type="checkbox" id="team-knocks" checked /> Knocks</label>
+            <label><input type="checkbox" id="team-deaths" checked /> Deaths</label>
+            <span id="team-players" class="team-players"></span>
+          </span>
+        </div>
+        <ol id="timeline" class="timeline"></ol>
+      </section>
+    </main>
+    <script src="/app.js?v=7"></script>
+  </body>
+</html>
