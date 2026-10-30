@@ -1,43 +1,81 @@
+using System.Runtime.InteropServices;
 using ReplayViewer.Core;
 
 namespace ReplayViewer;
 
 internal static class InstallLayout
 {
+    public static string StartMenuShortcutPath =>
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.StartMenu),
+            "Programs",
+            "Replay Viewer.lnk"
+        );
+
     public static void CopyToInstallDir(string sourceDirectory, AppPaths paths)
     {
         paths.EnsureDirectories();
-        foreach (var file in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.TopDirectoryOnly))
+        foreach (
+            var file in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories)
+        )
         {
-            var name = Path.GetFileName(file);
-            if (name.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase))
+            if (file.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            File.Copy(file, Path.Combine(paths.RootDirectory, name), overwrite: true);
+            var relative = Path.GetRelativePath(sourceDirectory, file);
+            var dest = Path.Combine(paths.RootDirectory, relative);
+            var destDir = Path.GetDirectoryName(dest);
+            if (!string.IsNullOrEmpty(destDir))
+            {
+                Directory.CreateDirectory(destDir);
+            }
+
+            File.Copy(file, dest, overwrite: true);
         }
 
-        var www = Path.Combine(sourceDirectory, "wwwroot");
-        if (Directory.Exists(www))
-        {
-            CopyDirectory(www, Path.Combine(paths.RootDirectory, "wwwroot"));
-        }
+        CreateStartMenuShortcut(paths.InstalledExePath);
     }
 
     public static void RegisterStartup(AppPaths paths) => LogonTask.Register(paths.InstalledExePath);
 
-    private static void CopyDirectory(string source, string dest)
+    public static void CreateStartMenuShortcut(string targetExePath)
     {
-        Directory.CreateDirectory(dest);
-        foreach (var file in Directory.EnumerateFiles(source))
+        var type = Type.GetTypeFromProgID("WScript.Shell");
+        if (type is null)
         {
-            File.Copy(file, Path.Combine(dest, Path.GetFileName(file)), overwrite: true);
+            return;
         }
 
-        foreach (var dir in Directory.EnumerateDirectories(source))
+        dynamic shell = Activator.CreateInstance(type)!;
+        try
         {
-            CopyDirectory(dir, Path.Combine(dest, Path.GetFileName(dir)));
+            Directory.CreateDirectory(Path.GetDirectoryName(StartMenuShortcutPath)!);
+            dynamic shortcut = shell.CreateShortcut(StartMenuShortcutPath);
+            shortcut.TargetPath = targetExePath;
+            shortcut.WorkingDirectory = Path.GetDirectoryName(targetExePath) ?? "";
+            shortcut.IconLocation = targetExePath + ",0";
+            shortcut.Description = "Replay Viewer";
+            shortcut.Save();
+        }
+        finally
+        {
+            Marshal.FinalReleaseComObject(shell);
+        }
+    }
+
+    public static void RemoveStartMenuShortcut()
+    {
+        try
+        {
+            if (File.Exists(StartMenuShortcutPath))
+            {
+                File.Delete(StartMenuShortcutPath);
+            }
+        }
+        catch (IOException)
+        {
         }
     }
 }

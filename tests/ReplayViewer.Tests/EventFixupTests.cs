@@ -59,6 +59,19 @@ public class EventFixupTests
     }
 
     [Fact]
+    public void Storm_after_a_revive_is_kept()
+    {
+        var knock = Row(10, EventKind.Knock, "bob", "Bob", "john", "John");
+        var revive = Row(14, EventKind.Revive, "amy", "Amy", "john", "John");
+        var storm = Row(20, EventKind.Finish, null, null, "john", "John", cause: "17");
+
+        var rows = EventFixup.Clean([knock, revive, storm]);
+        var finish = Assert.Single(rows, e => e.Kind == EventKind.Finish);
+        Assert.Equal("Storm", finish.ActorName);
+        Assert.Contains(rows, e => e.Kind == EventKind.Revive);
+    }
+
+    [Fact]
     public void Near_duplicate_killfeed_updates_are_collapsed()
     {
         var a = Row(10, EventKind.Knock, "bob", "Bob", "john", "John");

@@ -20,6 +20,7 @@ internal static class Program
         if (args.Any(a => string.Equals(a, "--uninstall", StringComparison.OrdinalIgnoreCase)))
         {
             LogonTask.Remove();
+            InstallLayout.RemoveStartMenuShortcut();
             FileLog.Info("removed Replay Viewer logon task");
             return 0;
         }
@@ -54,7 +55,9 @@ internal static class Program
             return 1;
         }
 
-        Application.Run(new TrayApp(host));
+        var tray = new TrayApp(host);
+        _ = UpdateChecker.RunAsync(tray, CancellationToken.None);
+        Application.Run(tray);
         return 0;
     }
 }

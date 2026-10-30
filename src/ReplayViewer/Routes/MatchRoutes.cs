@@ -6,6 +6,7 @@ namespace ReplayViewer;
 
 internal sealed class MatchRoutes : IHttpRoute
 {
+    private const int MaxBodyBytes = 64 * 1024;
     private static MatchDocument? s_last;
     private readonly IMatchScraper _scraper;
     private readonly StaticFiles _files = new();
@@ -23,7 +24,12 @@ internal sealed class MatchRoutes : IHttpRoute
             return false;
         }
 
-        return true;
+        if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return string.Equals(request.HttpMethod, "GET", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task HandleAsync(HttpListenerContext context, CancellationToken cancellationToken)
@@ -35,6 +41,14 @@ internal sealed class MatchRoutes : IHttpRoute
 
         try
         {
+            if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase) && path == "/api/config")
+            {
+                await HttpJson
+                    .WriteJsonAsync(response, new { nameFnPublicUrl = AppConfig.NameFnPublicUrl })
+                    .ConfigureAwait(false);
+                return;
+            }
+
             if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase) && path == "/api/demos")
             {
                 await HttpJson.WriteJsonAsync(response, _scraper.ListRecent()).ConfigureAwait(false);
@@ -43,7 +57,26 @@ internal sealed class MatchRoutes : IHttpRoute
 
             if (string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase) && path == "/api/scrape")
             {
+                var contentType = request.ContentType ?? "";
+                if (
+                    !contentType.StartsWith("application/json", StringComparison.OrdinalIgnoreCase)
+                )
+                {
+                    await HttpJson
+                        .WriteErrorAsync(response, 415, "Expected JSON.")
+                        .ConfigureAwait(false);
+                    return;
+                }
+
                 var body = await ReadBodyAsync(request, cancellationToken).ConfigureAwait(false);
+                if (body is null)
+                {
+                    await HttpJson
+                        .WriteErrorAsync(response, 413, "Request body is too large.")
+                        .ConfigureAwait(false);
+                    return;
+                }
+
                 string? replayPath = null;
                 if (!string.IsNullOrWhiteSpace(body))
                 {
@@ -111,6 +144,10 @@ internal sealed class MatchRoutes : IHttpRoute
         {
             await HttpJson.WriteErrorAsync(response, 422, ex.Message).ConfigureAwait(false);
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            await HttpJson.WriteErrorAsync(response, 400, ex.Message).ConfigureAwait(false);
+        }
         catch (FileNotFoundException ex)
         {
             await HttpJson.WriteErrorAsync(response, 404, ex.Message).ConfigureAwait(false);
@@ -119,18 +156,18 @@ internal sealed class MatchRoutes : IHttpRoute
         {
             await HttpJson.WriteErrorAsync(response, 504, ex.Message).ConfigureAwait(false);
         }
-        catch (JsonException ex)
+        catch (JsonException)
         {
-            await HttpJson.WriteErrorAsync(response, 400, ex.Message).ConfigureAwait(false);
+            await HttpJson.WriteErrorAsync(response, 400, "Invalid JSON.").ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             FileLog.Error("scrape failed", ex);
-            await HttpJson.WriteErrorAsync(response, 500, ex.Message).ConfigureAwait(false);
+            await HttpJson.WriteErrorAsync(response, 500, "Scrape failed.").ConfigureAwait(false);
         }
     }
 
-    private static async Task<string> ReadBodyAsync(
+    private static async Task<string?> ReadBodyAsync(
         HttpListenerRequest request,
         CancellationToken cancellationToken
     )
@@ -140,7 +177,20 @@ internal sealed class MatchRoutes : IHttpRoute
             return "";
         }
 
+        if (request.ContentLength64 > MaxBodyBytes)
+        {
+            return null;
+        }
+
         using var reader = new StreamReader(request.InputStream, request.ContentEncoding);
-        return await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+        var buffer = new char[MaxBodyBytes + 1];
+        var read = await reader.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)
+            .ConfigureAwait(false);
+        if (read > MaxBodyBytes)
+        {
+            return null;
+        }
+
+        return new string(buffer, 0, read);
     }
 }

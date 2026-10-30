@@ -4,6 +4,9 @@ namespace ReplayViewer.Core;
 
 public sealed class SkinCache : ISkinCache
 {
+    public const int MaxPngBytes = 256 * 1024;
+    private static readonly byte[] PngMagic = [0x89, 0x50, 0x4E, 0x47];
+
     private readonly string _directory;
     private readonly HttpClient _http;
 
@@ -75,9 +78,32 @@ public sealed class SkinCache : ISkinCache
                 return null;
             }
 
-            var png = await _http.GetByteArrayAsync(new Uri(iconUrl), cancellationToken)
+            using var pngResponse = await _http
+                .GetAsync(new Uri(iconUrl), HttpCompletionOption.ResponseHeadersRead, cancellationToken)
                 .ConfigureAwait(false);
-            return png.Length == 0 ? null : png;
+            if (!pngResponse.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            if (pngResponse.Content.Headers.ContentLength is > MaxPngBytes)
+            {
+                return null;
+            }
+
+            var png = await pngResponse.Content.ReadAsByteArrayAsync(cancellationToken)
+                .ConfigureAwait(false);
+            if (png.Length is 0 or > MaxPngBytes)
+            {
+                return null;
+            }
+
+            if (png.Length < 4 || !png.AsSpan(0, 4).SequenceEqual(PngMagic))
+            {
+                return null;
+            }
+
+            return png;
         }
         catch (HttpRequestException)
         {

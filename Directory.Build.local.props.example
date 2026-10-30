@@ -1,0 +1,6 @@
+<Project>
+  <!-- Copy to Directory.Build.local.props (gitignored). -->
+  <PropertyGroup>
+    <NameFnPublicUrl>https://example.test</NameFnPublicUrl>
+  </PropertyGroup>
+</Project>

@@ -15,6 +15,7 @@ const state = {
   teamSelected: new Set(),
   sort: "placement",
   demosOpen: false,
+  nameFnPublicUrl: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -269,6 +270,31 @@ function trackerButton(name) {
   return `<a class="tracker" href="${escapeHtml(trackerUrl(name))}" target="_blank" rel="noopener noreferrer" title="Fortnite Tracker">${themedIcon("external.svg", "Fortnite Tracker")}</a>`;
 }
 
+function epicUuid(id) {
+  const h = String(id).replaceAll("-", "").toLowerCase();
+  if (!/^[0-9a-f]{32}$/.test(h)) return null;
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+function nameFnButton(epicId) {
+  if (!state.nameFnPublicUrl || !epicId) return "";
+  const q = epicUuid(epicId);
+  if (!q) return "";
+  const url = state.nameFnPublicUrl + "/search?q=" + encodeURIComponent(q);
+  return `<a class="tracker namefn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" title="NameFN">${themedIcon("external.svg", "NameFN")}</a>`;
+}
+
+function uniqueHumanSkins(match) {
+  const ids = [];
+  for (const team of match.teams) {
+    for (const p of team.players) {
+      if (p.isBot || !p.skinCid) continue;
+      ids.push(String(p.skinCid).toLowerCase());
+    }
+  }
+  return new Set(ids);
+}
+
 function formatAccuracy(value) {
   if (value == null || Number.isNaN(Number(value))) return null;
   const n = Number(value);
@@ -400,6 +426,7 @@ function render() {
   const showBots = $("show-bots").checked;
   const roster = $("roster");
   roster.innerHTML = "";
+  const skins = uniqueHumanSkins(match);
   for (const team of sortTeams(match.teams, state.sort)) {
     const visiblePlayers = team.players.filter((p) => {
       if (!showBots && p.isBot) return false;
@@ -428,13 +455,15 @@ function render() {
       if (p.epicId) row.dataset.player = p.epicId.toLowerCase();
       if (idsEqual(p.epicId, state.focusPlayerId)) row.classList.add("highlight");
       const cid = p.skinCid || "";
+      const showSkin = skins.size > 1 && cid;
       const anon = anonymousLabel(p);
       row.innerHTML = `
-        <img class="skin" alt="" src="${cid ? "/skins/" + encodeURIComponent(cid) : "/skins/placeholder"}" />
+        ${showSkin ? `<img class="skin" alt="" src="/skins/${encodeURIComponent(cid)}" onerror="this.remove()" />` : ""}
         <div>
           <div class="pname-row">
             <span class="pname">${escapeHtml(p.name)}</span>
             ${trackerButton(p.name)}
+            ${nameFnButton(p.epicId)}
           </div>
           <div class="badges">
             ${platformMarkup(p.platform)}
@@ -446,7 +475,9 @@ function render() {
         </div>
         <div class="kills">${p.kills}</div>
       `;
-      row.querySelector(".tracker")?.addEventListener("click", (ev) => ev.stopPropagation());
+      row.querySelectorAll(".tracker").forEach((el) => {
+        el.addEventListener("click", (ev) => ev.stopPropagation());
+      });
       row.addEventListener("click", () => {
         selectOnlyPlayer(team, p.epicId);
         openTeamTimeline();
@@ -582,6 +613,12 @@ document.querySelectorAll(".tabs button").forEach((btn) => {
   });
 });
 
+fetch("/api/config")
+  .then((res) => (res.ok ? res.json() : null))
+  .then((cfg) => {
+    if (cfg && cfg.nameFnPublicUrl) state.nameFnPublicUrl = String(cfg.nameFnPublicUrl).replace(/\/$/, "");
+  })
+  .catch(() => {});
 loadDemos().catch((err) => showStatus(String(err)));
 fetch("/api/match")
   .then((res) => (res.ok ? res.json() : null))

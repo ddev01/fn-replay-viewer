@@ -1,8 +1,6 @@
 using System.Net;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using ReplayViewer.Core;
 
 namespace ReplayViewer;
 
@@ -61,17 +59,6 @@ internal static class HttpJson
         response.ContentLength64 = body.Length;
         await response.OutputStream.WriteAsync(body).ConfigureAwait(false);
         response.OutputStream.Close();
-    }
-
-    public static async Task WriteTextAsync(
-        HttpListenerResponse response,
-        string body,
-        string contentType,
-        int status = 200
-    )
-    {
-        var bytes = Encoding.UTF8.GetBytes(body);
-        await WriteBytesAsync(response, bytes, contentType, status).ConfigureAwait(false);
     }
 
     private sealed record ErrorBody(string Error);

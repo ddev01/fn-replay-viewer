@@ -30,20 +30,24 @@ internal sealed class MatchScraper : IMatchScraper
 
             path = pick.Path;
         }
+        else
+        {
+            path = ReplayPaths.ResolveInside(DemosFolder.DefaultPath, path);
+        }
 
         if (!File.Exists(path))
         {
             throw new FileNotFoundException("Replay file was not found.", path);
         }
 
+        if (ReplayHeader.TryInspect(path, out var header) && header.IsLive)
+        {
+            throw new LiveReplayException();
+        }
+
         var copy = ReplayFileAccess.CopyWithReadWriteShare(path);
         try
         {
-            if (ReplayHeader.TryInspect(copy, out var header) && header.IsLive)
-            {
-                throw new LiveReplayException();
-            }
-
             var snapshot = await _probe.ReadAsync(copy, cancellationToken).ConfigureAwait(false);
             snapshot = snapshot with { SourceFileName = Path.GetFileName(path) };
             return MatchAssembler.Build(snapshot, DateTimeOffset.UtcNow);

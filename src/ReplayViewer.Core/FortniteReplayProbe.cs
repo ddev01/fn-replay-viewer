@@ -10,12 +10,7 @@ public sealed class FortniteReplayProbe
 {
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(60);
 
-    private static readonly ParseMode[] Modes =
-    [
-        ParseMode.Minimal,
-        ParseMode.Normal,
-        ParseMode.Full,
-    ];
+    private static readonly ParseMode[] Modes = [ParseMode.Full, ParseMode.Minimal];
 
     public TimeSpan Timeout { get; init; } = DefaultTimeout;
 
@@ -384,7 +379,14 @@ public sealed class FortniteReplayProbe
 
     private static double ParseTime(string? time)
     {
-        if (double.TryParse(time, out var seconds))
+        if (
+            double.TryParse(
+                time,
+                System.Globalization.NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var seconds
+            )
+        )
         {
             return seconds;
         }

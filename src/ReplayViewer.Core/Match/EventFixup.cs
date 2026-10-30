@@ -44,7 +44,7 @@ public static class EventFixup
                 if (victim is not null)
                 {
                     lastKnock.Remove(victim);
-                    finishedThisLife[victim] = true;
+                    finishedThisLife[victim] = false;
                 }
 
                 result.Add(row);

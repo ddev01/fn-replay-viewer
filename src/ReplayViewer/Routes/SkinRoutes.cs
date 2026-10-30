@@ -32,15 +32,15 @@ internal sealed class SkinRoutes : IHttpRoute
             FileLog.Error("skin fetch failed", ex);
         }
 
-        var hit = png is { Length: > 0 };
-        var body = hit ? png! : PlaceholderPng.Bytes;
+        if (png is not { Length: > 0 })
+        {
+            context.Response.StatusCode = 404;
+            context.Response.OutputStream.Close();
+            return;
+        }
+
         await HttpJson
-            .WriteBytesAsync(
-                context.Response,
-                body,
-                "image/png",
-                cacheControl: hit ? "public, max-age=86400" : "no-store"
-            )
+            .WriteBytesAsync(context.Response, png, "image/png", cacheControl: "public, max-age=86400")
             .ConfigureAwait(false);
     }
 }
