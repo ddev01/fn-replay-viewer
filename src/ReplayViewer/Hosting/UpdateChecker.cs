@@ -12,6 +12,7 @@ internal static class UpdateChecker
     {
         try
         {
+            FileLog.Info($"update check: current {AppConfig.Version}");
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
             http.DefaultRequestHeaders.UserAgent.ParseAdd("fn-replay-viewer");
             http.DefaultRequestHeaders.Accept.Add(
@@ -26,6 +27,7 @@ internal static class UpdateChecker
                 .ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
+                FileLog.Info($"update check skipped: HTTP {(int)response.StatusCode}");
                 return;
             }
 
