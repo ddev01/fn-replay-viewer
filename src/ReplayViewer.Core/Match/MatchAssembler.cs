@@ -131,7 +131,6 @@ public static class MatchAssembler
             player.EpicId,
             name,
             PlatformMapper.ToDisplay(player.RawPlatform),
-            player.SkinCid,
             kills,
             isYou,
             player.IsBot,

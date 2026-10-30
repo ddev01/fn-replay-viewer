@@ -1,6 +1,6 @@
 # Replay Viewer
 
-Local Windows tray app that reads Fortnite demo files from your Demos folder and shows roster, timeline, and optional skin icons.
+Local Windows tray app that reads Fortnite demo files from your Demos folder and shows roster and timeline.
 
 Releases: https://github.com/ddev01/fn-replay-viewer/releases
 

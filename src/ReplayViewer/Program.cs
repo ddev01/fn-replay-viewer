@@ -35,8 +35,7 @@ internal static class Program
         AppPaths.Default.EnsureDirectories();
         ApplicationConfiguration.Initialize();
         var scraper = new MatchScraper();
-        var skins = new SkinCache();
-        IHttpRoute[] routes = [new SkinRoutes(skins), new MatchRoutes(scraper)];
+        IHttpRoute[] routes = [new MatchRoutes(scraper)];
         var host = new ListenerHost(routes);
         try
         {

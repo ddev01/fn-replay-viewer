@@ -49,7 +49,7 @@ public sealed class FortniteReplayProbe
         foreach (var mode in Modes)
         {
             var replay = new ReplayReader(parseMode: mode).ReadReplay(path);
-            if (HasPlayersAndEvents(replay) && (mode == ParseMode.Full || HasAnySkinCid(replay)))
+            if (HasPlayersAndEvents(replay))
             {
                 chosen = replay;
                 break;
@@ -73,11 +73,6 @@ public sealed class FortniteReplayProbe
             replay.Eliminations?.Count > 0 || replay.KillFeed?.Count > 0;
         return players && events;
     }
-
-    private static bool HasAnySkinCid(FortniteReplay replay) =>
-        replay.PlayerData?.Any(p =>
-            !p.IsBot && CosmeticIds.Extract(p.Cosmetics?.Character, p.Cosmetics?.HeroType) is not null
-        ) == true;
 
     private static ParsedReplaySnapshot Map(FortniteReplay replay, string sourceFileName)
     {
@@ -156,7 +151,6 @@ public sealed class FortniteReplayProbe
             string.IsNullOrWhiteSpace(epic) ? null : epic.Trim(),
             string.IsNullOrWhiteSpace(player.PlayerName) ? null : player.PlayerName.Trim(),
             string.IsNullOrWhiteSpace(player.Platform) ? null : player.Platform.Trim(),
-            CosmeticIds.Extract(player.Cosmetics?.Character, player.Cosmetics?.HeroType),
             player.IsReplayOwner,
             player.IsBot,
             player.Disconnected == true,

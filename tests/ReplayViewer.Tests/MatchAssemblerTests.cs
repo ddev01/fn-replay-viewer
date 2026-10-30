@@ -211,7 +211,6 @@ public class MatchAssemblerTests
             id,
             id.ToUpperInvariant(),
             platform,
-            "CID_001_Athena_Commando_F_Default",
             you,
             IsBot: false,
             Disconnected: false,

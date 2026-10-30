@@ -284,17 +284,6 @@ function nameFnButton(epicId) {
   return `<a class="tracker namefn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" title="NameFN">${themedIcon("external.svg", "NameFN")}</a>`;
 }
 
-function uniqueHumanSkins(match) {
-  const ids = [];
-  for (const team of match.teams) {
-    for (const p of team.players) {
-      if (p.isBot || !p.skinCid) continue;
-      ids.push(String(p.skinCid).toLowerCase());
-    }
-  }
-  return new Set(ids);
-}
-
 function formatAccuracy(value) {
   if (value == null || Number.isNaN(Number(value))) return null;
   const n = Number(value);
@@ -426,7 +415,6 @@ function render() {
   const showBots = $("show-bots").checked;
   const roster = $("roster");
   roster.innerHTML = "";
-  const skins = uniqueHumanSkins(match);
   for (const team of sortTeams(match.teams, state.sort)) {
     const visiblePlayers = team.players.filter((p) => {
       if (!showBots && p.isBot) return false;
@@ -454,11 +442,8 @@ function render() {
       row.className = "player";
       if (p.epicId) row.dataset.player = p.epicId.toLowerCase();
       if (idsEqual(p.epicId, state.focusPlayerId)) row.classList.add("highlight");
-      const cid = p.skinCid || "";
-      const showSkin = skins.size > 1 && cid;
       const anon = anonymousLabel(p);
       row.innerHTML = `
-        ${showSkin ? `<img class="skin" alt="" src="/skins/${encodeURIComponent(cid)}" onerror="this.remove()" />` : ""}
         <div>
           <div class="pname-row">
             <span class="pname">${escapeHtml(p.name)}</span>

@@ -17,8 +17,6 @@ public sealed class AppPaths
 
     public string LogsDirectory => Path.Combine(RootDirectory, "logs");
 
-    public string SkinsDirectory => Path.Combine(RootDirectory, "skins");
-
     public string InstalledExePath => Path.Combine(RootDirectory, ExeFileName);
 
     public static AppPaths Default { get; } =
@@ -33,6 +31,5 @@ public sealed class AppPaths
     {
         Directory.CreateDirectory(RootDirectory);
         Directory.CreateDirectory(LogsDirectory);
-        Directory.CreateDirectory(SkinsDirectory);
     }
 }

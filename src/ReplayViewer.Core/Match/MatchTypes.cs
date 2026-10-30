@@ -43,7 +43,6 @@ public sealed record PlayerSnapshot(
     string? EpicId,
     string? DisplayName,
     string? RawPlatform,
-    string? SkinCid,
     bool IsReplayOwner,
     bool IsBot,
     bool Disconnected,
@@ -93,7 +92,6 @@ public sealed record RosterPlayer(
     string? EpicId,
     string Name,
     string? Platform,
-    string? SkinCid,
     int Kills,
     bool IsYou,
     bool IsBot,
@@ -129,9 +127,4 @@ public interface IMatchScraper
     IReadOnlyList<DemoListItem> ListRecent(int take = 20);
 
     Task<MatchDocument> ScrapeAsync(string? replayPath, CancellationToken cancellationToken);
-}
-
-public interface ISkinCache
-{
-    Task<byte[]?> GetPngAsync(string cid, CancellationToken cancellationToken);
 }

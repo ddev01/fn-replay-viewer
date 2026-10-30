@@ -19,11 +19,6 @@ internal sealed class MatchRoutes : IHttpRoute
     public bool Matches(HttpListenerRequest request)
     {
         var path = request.Url?.AbsolutePath ?? "/";
-        if (path.StartsWith("/skins/", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
         if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
         {
             return true;
