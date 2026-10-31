@@ -70,8 +70,13 @@ end;
 function InitializeSetup(): Boolean;
 begin
   CloseRunningApp;
-  CleanLegacyBundle;
   Result := True;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  CleanLegacyBundle;
+  Result := '';
 end;
 
 [Languages]
