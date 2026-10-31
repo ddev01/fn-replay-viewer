@@ -15,6 +15,14 @@ internal static class InstallLayout
     public static void CopyToInstallDir(string sourceDirectory, AppPaths paths)
     {
         paths.EnsureDirectories();
+        var sourceRoot = Path.GetFullPath(sourceDirectory);
+        var destRoot = Path.GetFullPath(paths.RootDirectory);
+        if (string.Equals(sourceRoot, destRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            CreateStartMenuShortcut(paths.InstalledExePath);
+            return;
+        }
+
         foreach (
             var file in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories)
         )
@@ -35,7 +43,58 @@ internal static class InstallLayout
             File.Copy(file, dest, overwrite: true);
         }
 
+        RemoveStalePayload(sourceRoot, destRoot);
         CreateStartMenuShortcut(paths.InstalledExePath);
+    }
+
+    private static readonly HashSet<string> PreservedDirectoryNames =
+        new(StringComparer.OrdinalIgnoreCase) { "logs", "skins" };
+
+    private static void RemoveStalePayload(string sourceRoot, string destRoot)
+    {
+        foreach (var file in Directory.EnumerateFiles(destRoot))
+        {
+            var name = Path.GetFileName(file);
+            if (name.StartsWith("unins", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (File.Exists(Path.Combine(sourceRoot, name)))
+            {
+                continue;
+            }
+
+            try
+            {
+                File.Delete(file);
+            }
+            catch (IOException)
+            {
+            }
+        }
+
+        foreach (var dir in Directory.EnumerateDirectories(destRoot))
+        {
+            var name = Path.GetFileName(dir);
+            if (PreservedDirectoryNames.Contains(name))
+            {
+                continue;
+            }
+
+            if (Directory.Exists(Path.Combine(sourceRoot, name)))
+            {
+                continue;
+            }
+
+            try
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
     }
 
     public static void RegisterStartup(AppPaths paths) => LogonTask.Register(paths.InstalledExePath);

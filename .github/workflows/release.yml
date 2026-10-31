@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pack:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Test
+        run: dotnet test ReplayViewer.sln -c Release --nologo
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Pack installer and zip
+        env:
+          NameFnPublicUrl: ${{ secrets.NAME_FN_PUBLIC_URL }}
+        run: pwsh -File scripts/pack.ps1
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $project = "src/ReplayViewer/ReplayViewer.csproj"
+          $version = (dotnet msbuild $project -getProperty:Version -nologo).Trim()
+          $setup = "artifacts/installer/ReplayViewer-Setup-$version.exe"
+          $zip = "artifacts/ReplayViewer-win-x64-$version.zip"
+          if ($env:GITHUB_REF_TYPE -eq "tag") {
+            $tag = $env:GITHUB_REF_NAME
+          } else {
+            $tag = "v$version"
+          }
+
+          $expected = "v$version"
+          if ($tag -ne $expected) {
+            throw "Tag $tag does not match project version $expected"
+          }
+
+          $notes = @"
+          Download **ReplayViewer-Setup-$version.exe** and run it. No unzipping and no extra DLLs.
+
+          The installer puts Replay Viewer in your user folder, adds a Start Menu shortcut, starts it at sign-in, and can launch it when setup finishes.
+          "@
+
+          gh release view $tag --json tagName 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $setup $zip --clobber
+          } else {
+            gh release create $tag $setup $zip --title "Replay Viewer $version" --notes $notes
+          }

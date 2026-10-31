@@ -11,7 +11,9 @@ internal static class Program
         if (args.Any(a => string.Equals(a, "--install", StringComparison.OrdinalIgnoreCase)))
         {
             var paths = AppPaths.Default;
-            InstallLayout.CopyToInstallDir(AppContext.BaseDirectory, paths);
+            var source =
+                Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+            InstallLayout.CopyToInstallDir(source, paths);
             InstallLayout.RegisterStartup(paths);
             FileLog.Info($"installed to {paths.InstalledExePath}");
             return 0;

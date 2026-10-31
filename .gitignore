@@ -7,3 +7,4 @@ Directory.Build.local.props
 artifacts/
 *.zip
 logs/
+tools/

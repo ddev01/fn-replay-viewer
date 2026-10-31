@@ -61,6 +61,14 @@ internal sealed class TrayApp : ApplicationContext
 
     private static Icon LoadIcon()
     {
+        var fromExe = Icon.ExtractAssociatedIcon(
+            Environment.ProcessPath ?? Application.ExecutablePath
+        );
+        if (fromExe is not null)
+        {
+            return fromExe;
+        }
+
         var path = Path.Combine(AppContext.BaseDirectory, "app.ico");
         if (File.Exists(path))
         {
