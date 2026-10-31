@@ -73,9 +73,17 @@ begin
   Result := True;
 end;
 
+procedure RemoveLegacyLogonTask;
+var
+  ResultCode: Integer;
+begin
+  Exec(ExpandConstant('{sys}\schtasks.exe'), '/Delete /TN "Replay Viewer" /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   CleanLegacyBundle;
+  RemoveLegacyLogonTask;
   Result := '';
 end;
 
@@ -84,6 +92,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
+
+[Registry]
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "ReplayViewer"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue
 
 [Files]
 Source: "..\artifacts\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Microsoft.Win32;
 using ReplayViewer.Core;
 
 namespace ReplayViewer;
@@ -97,7 +98,24 @@ internal static class InstallLayout
         }
     }
 
-    public static void RegisterStartup(AppPaths paths) => LogonTask.Register(paths.InstalledExePath);
+    private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    private const string RunValueName = "ReplayViewer";
+
+    public static void RegisterStartup(AppPaths paths)
+    {
+        LogonTask.Remove();
+        using var key =
+            Registry.CurrentUser.CreateSubKey(RunKeyPath)
+            ?? throw new InvalidOperationException("Could not open the current-user Run key.");
+        key.SetValue(RunValueName, $"\"{paths.InstalledExePath}\"");
+    }
+
+    public static void RemoveStartup()
+    {
+        LogonTask.Remove();
+        using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
+        key?.DeleteValue(RunValueName, throwOnMissingValue: false);
+    }
 
     public static void CreateStartMenuShortcut(string targetExePath)
     {

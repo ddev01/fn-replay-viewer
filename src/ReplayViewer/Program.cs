@@ -21,9 +21,9 @@ internal static class Program
 
         if (args.Any(a => string.Equals(a, "--uninstall", StringComparison.OrdinalIgnoreCase)))
         {
-            LogonTask.Remove();
+            InstallLayout.RemoveStartup();
             InstallLayout.RemoveStartMenuShortcut();
-            FileLog.Info("removed Replay Viewer logon task");
+            FileLog.Info("removed Replay Viewer startup registration");
             return 0;
         }
 
