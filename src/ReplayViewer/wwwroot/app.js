@@ -45,6 +45,9 @@ const $ = (id) => {
   return el;
 };
 
+/** @type {boolean} */
+let scraping = false;
+
 /**
  * The ids read through here are the page's checkboxes and search box.
  * @param {string} id
@@ -109,6 +112,8 @@ function yourTeam(match) {
  * @returns {TeamRoster | null}
  */
 function teamByIndex(match, index) {
+  // Number(null) is 0, so without this a missing index would resolve to team 0.
+  if (index == null) return null;
   return match.teams.find((t) => t.teamIndex === Number(index)) ?? null;
 }
 
@@ -497,10 +502,13 @@ async function loadDemos() {
  * @param {string} path
  */
 async function scrape(path) {
+  // Two overlapping scrapes race: whichever response arrives last wins, so the roster can
+  // show a different demo than the one clicked last. Guard here, not on the button, because
+  // the Demos panel calls this directly.
+  if (scraping) return;
+  scraping = true;
   /** @type {HTMLButtonElement} */
   const button = /** @type {HTMLButtonElement} */ ($("scrape"));
-  // Two overlapping scrapes race: whichever response arrives last wins, so the roster can
-  // show a different demo than the one clicked last.
   button.disabled = true;
   showStatus("Scraping…");
   try {
@@ -525,6 +533,7 @@ async function scrape(path) {
     // The app exited or the listener is gone; leaving "Scraping…" up would be a lie.
     showStatus("Could not reach Replay Viewer.");
   } finally {
+    scraping = false;
     button.disabled = false;
   }
 }

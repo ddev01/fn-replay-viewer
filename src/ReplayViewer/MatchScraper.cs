@@ -58,8 +58,10 @@ internal sealed class MatchScraper : IMatchScraper
             {
                 File.Delete(copy);
             }
-            catch (IOException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+                // A backup agent or antivirus can hold the temp file; a leftover copy must not
+                // turn a successful scrape into a failure.
             }
         }
     }

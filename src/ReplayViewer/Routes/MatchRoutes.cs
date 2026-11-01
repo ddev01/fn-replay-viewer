@@ -7,6 +7,7 @@ namespace ReplayViewer;
 internal sealed class MatchRoutes : IHttpRoute
 {
     private const int MaxBodyBytes = 64 * 1024;
+    private static readonly SemaphoreSlim ScrapeGate = new(1, 1);
     private static MatchDocument? s_last;
     private readonly IMatchScraper _scraper;
     private readonly StaticFiles _files = new();
@@ -85,8 +86,28 @@ internal sealed class MatchRoutes : IHttpRoute
                     }
                 }
 
-                var match = await _scraper.ScrapeAsync(replayPath, cancellationToken)
-                    .ConfigureAwait(false);
+                // One scrape at a time: each copies the whole replay and starts a parser, and the
+                // last response to finish would win the roster anyway.
+                if (!await ScrapeGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+                {
+                    await HttpJson
+                        .WriteErrorAsync(response, 409, "A scrape is already running.")
+                        .ConfigureAwait(false);
+                    return;
+                }
+
+                MatchDocument match;
+                try
+                {
+                    match = await _scraper
+                        .ScrapeAsync(replayPath, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                finally
+                {
+                    ScrapeGate.Release();
+                }
+
                 s_last = match;
                 await HttpJson.WriteJsonAsync(response, match).ConfigureAwait(false);
                 return;
@@ -150,6 +171,10 @@ internal sealed class MatchRoutes : IHttpRoute
         catch (TimeoutException ex)
         {
             await HttpJson.WriteErrorAsync(response, 504, ex.Message).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // The client went away; nothing to report and nowhere to send it.
         }
         catch (JsonException)
         {

@@ -3,7 +3,8 @@ param(
     [string]$Branch = "",
     [switch]$SkipFrontend,
     [switch]$Coverage,
-    [switch]$Pack
+    [switch]$Pack,
+    [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
@@ -25,6 +26,11 @@ function Step([string]$name, [scriptblock]$body) {
 
 if ($Branch) {
     Write-Host "==> checkout $Branch" -ForegroundColor Cyan
+    # -Branch discards local state, so refuse to do it to a checkout with work in progress.
+    if (-not $Force -and (git status --porcelain)) {
+        throw "$root has uncommitted changes; re-run with -Force to discard them"
+    }
+
     git fetch origin --prune
     if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
     # This clone is a disposable verification target: drop stray edits and untracked

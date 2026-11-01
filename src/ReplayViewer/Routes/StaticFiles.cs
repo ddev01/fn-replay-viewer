@@ -42,6 +42,9 @@ internal sealed class StaticFiles
 
         response.ContentType = ContentType(path);
         response.StatusCode = 200;
+        // The files ship with the app and change on update; a stale app.js after an update is
+        // worse than re-reading a few KB from disk, so nothing here is cached.
+        response.AddHeader("Cache-Control", "no-store");
         using var file = File.OpenRead(path);
         file.CopyTo(response.OutputStream);
         response.OutputStream.Close();

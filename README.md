@@ -13,7 +13,7 @@ Releases: https://github.com/ddev01/fn-replay-viewer/releases
 
 That copies the app to `%LocalAppData%\ReplayViewer` and adds a Start Menu shortcut. The installer also offers **Start Replay Viewer when I sign in**, which you can change later from the tray icon.
 
-Uninstall from **Settings → Apps** (or Apps & features). App data such as logs and cached skins is left in `%LocalAppData%\ReplayViewer`.
+Uninstall from **Settings → Apps** (or Apps & features). App data such as logs is left in `%LocalAppData%\ReplayViewer`.
 
 The zip on the release is only for the in-app updater. You do not need to unzip it yourself.
 

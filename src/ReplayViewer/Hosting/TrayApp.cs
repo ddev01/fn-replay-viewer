@@ -149,7 +149,7 @@ internal sealed class TrayApp : ApplicationContext
                     Arguments =
                         "/c ping -n 4 127.0.0.1 >nul & \""
                         + exe
-                        + "\" --install & start \"\" \""
+                        + "\" --install && start \"\" \""
                         + installed
                         + "\"",
                     UseShellExecute = false,

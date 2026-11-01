@@ -21,9 +21,10 @@ The app runs as the signed-in user, with no Administrator rights, and never leav
 except for the update check. Interesting areas, in plain language:
 
 - **Replay file parser.** `.replay` files from the Demos folder are untrusted input from disk,
-  parsed in-process by `FortniteReplayReader` (`src/ReplayViewer.Core/FortniteReplayProbe.cs`, with
-  a 60-second parse timeout). A crafted file that crashes, hangs past the timeout, or escapes the
-  parser into the host process is in scope.
+  parsed in-process by `FortniteReplayReader` (`src/ReplayViewer.Core/FortniteReplayProbe.cs`).
+  A 60-second timeout ends the *request*, not the parse: the parsing thread keeps running until
+  the process exits, so a crafted file can hold one core busy. A crafted file that crashes the
+  process, hangs it, or escapes the parser into the host is in scope.
 - **Loopback HTTP server.** The UI and JSON API are served on `http://127.0.0.1:47231/`
   (`src/ReplayViewer.Core/AppPaths.cs`, `src/ReplayViewer/Routes/MatchRoutes.cs`). It has **no
   authentication and no origin check**, so any process on the machine — including a browser page

@@ -6,7 +6,7 @@ namespace ReplayViewer;
 
 internal static class InstallLayout
 {
-    private static readonly string[] PreservedDirectoryNames = ["logs", "skins"];
+    private static readonly string[] PreservedDirectoryNames = ["logs"];
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValueName = "ReplayViewer";
 

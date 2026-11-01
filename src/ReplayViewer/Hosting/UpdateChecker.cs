@@ -35,8 +35,17 @@ internal static class UpdateChecker
             .ConfigureAwait(false);
         var root = doc.RootElement;
 
+        return ParseRelease(root, AppConfig.Version);
+    }
+
+    /// <summary>
+    /// Picks the update asset out of a GitHub "latest release" payload. Pure so it can be
+    /// tested without the network: a bad asset selection ships a broken updater.
+    /// </summary>
+    internal static Available? ParseRelease(JsonElement root, string currentVersion)
+    {
         var tag = root.TryGetProperty("tag_name", out var tagEl) ? tagEl.GetString() ?? "" : "";
-        if (!AppVersion.IsNewer(tag, AppConfig.Version))
+        if (!AppVersion.IsNewer(tag, currentVersion))
         {
             return null;
         }
