@@ -34,12 +34,15 @@ jobs:
         run: dotnet build ReplayViewer.sln -c Release --nologo -warnaserror --no-restore
 
       - name: Test
-        run: dotnet test ReplayViewer.sln -c Release --nologo --no-build --collect:"XPlat Code Coverage" --results-directory artifacts/coverage
+        run: |
+          Remove-Item -Recurse -Force artifacts/coverage -ErrorAction SilentlyContinue
+          dotnet test ReplayViewer.sln -c Release --nologo --no-build --collect:"XPlat Code Coverage" --results-directory artifacts/coverage
 
       - name: Coverage gate
         run: |
           dotnet tool restore
-          dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "-minimumCoverageThresholds:lineCoverage=60;branchCoverage=60"
+          # No leading dash on minimumCoverageThresholds: with one it is ignored and the gate always passes.
+          dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "minimumCoverageThresholds:lineCoverage=60;branchCoverage=60"
           Get-Content artifacts/coverage/report/Summary.txt | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
 
       - name: Format
