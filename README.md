@@ -8,7 +8,7 @@ Releases: https://github.com/ddev01/fn-replay-viewer/releases
 
 1. Download **ReplayViewer-Setup-*.exe** from [Releases](https://github.com/ddev01/fn-replay-viewer/releases).
 2. Run the installer. It does not need Administrator rights.
-3. If Windows SmartScreen appears, choose **More info** then **Run anyway**. This build is unsigned (a paid code-signing cert is the only way to drop that prompt).
+3. If Windows SmartScreen appears, choose **More info** then **Run anyway**. This build is unsigned; signing it (for example with Microsoft's Azure Artifact Signing, formerly Trusted Signing — a subscription of about $10/month, no hardware token) would show a publisher name, but SmartScreen still warns until a reputation builds up.
 4. Leave **Launch Replay Viewer** checked on the last page.
 
 That copies the app to `%LocalAppData%\ReplayViewer` and adds a Start Menu shortcut. The installer also offers **Start Replay Viewer when I sign in**, which you can change later from the tray icon.
@@ -25,7 +25,15 @@ Updates are checked at launch and every six hours. When a newer release exists t
 
 ## Build
 
-Install [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`choco install innosetup`), then:
+Install [.NET SDK 10.0.401](https://dotnet.microsoft.com/download) (`global.json` pins it, and restore uses the committed `packages.lock.json` files), plus [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`choco install innosetup`) to build the installer. Node is only needed for the frontend checks: if `package.json` is present, run `npm ci` first.
+
+`scripts/verify.ps1` runs every check CI runs — locked restore, build, tests, format check, and the frontend lint/typecheck/UI tests when `package.json` is present:
+
+```powershell
+pwsh -File scripts/verify.ps1
+```
+
+To build the release artifacts:
 
 ```powershell
 pwsh -File scripts/pack.ps1
