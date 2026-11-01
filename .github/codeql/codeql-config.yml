@@ -2,4 +2,4 @@
 # response writes are structurally identical to the sinks cs/web/xss looks for, so
 # scanning it produces false positives that reappear whenever the file shifts a line.
 paths-ignore:
-  - tests/**
+  - "**/tests/**"

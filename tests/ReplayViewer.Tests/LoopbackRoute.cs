@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 
 namespace ReplayViewer.Tests;
 
@@ -121,11 +120,11 @@ internal sealed class LoopbackRoute : IAsyncDisposable
                 context.Response.OutputStream.Close();
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             try
             {
-                await WriteFailureAsync(context.Response, ex);
+                await WriteFailureAsync(context.Response);
             }
             catch (Exception writeEx)
                 when (writeEx is HttpListenerException or ObjectDisposedException or IOException)
@@ -135,17 +134,15 @@ internal sealed class LoopbackRoute : IAsyncDisposable
         }
     }
 
-    private static async Task WriteFailureAsync(HttpListenerResponse response, Exception exception)
+    private static Task WriteFailureAsync(HttpListenerResponse response)
     {
-        // A route that throws must not leave the client waiting for a response. The exception
-        // text is deliberately not written: echoing a stack trace into a response is the pattern
-        // CodeQL flags, and the tests assert on status codes, not bodies.
-        var body = Encoding.UTF8.GetBytes("unhandled: " + exception.GetType().Name);
+        // A route that throws must not leave the client waiting for a response. Nothing from the
+        // exception is written: the tests assert on status codes, and a body here is the sink
+        // CodeQL flags as information exposure.
         response.StatusCode = 599;
-        response.ContentType = "text/plain";
-        response.ContentLength64 = body.Length;
-        await response.OutputStream.WriteAsync(body);
+        response.ContentLength64 = 0;
         response.OutputStream.Close();
+        return Task.CompletedTask;
     }
 
     internal static int FreePort()
