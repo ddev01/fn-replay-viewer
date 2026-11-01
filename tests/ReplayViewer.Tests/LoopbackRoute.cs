@@ -121,8 +121,10 @@ internal sealed class LoopbackRoute : IAsyncDisposable
 
     private static async Task WriteFailureAsync(HttpListenerResponse response, Exception exception)
     {
-        // A route that throws must not leave the client waiting for a response.
-        var body = Encoding.UTF8.GetBytes(exception.ToString());
+        // A route that throws must not leave the client waiting for a response. The exception
+        // text is deliberately not written: echoing a stack trace into a response is the pattern
+        // CodeQL flags, and the tests assert on status codes, not bodies.
+        var body = Encoding.UTF8.GetBytes("unhandled: " + exception.GetType().Name);
         response.StatusCode = 599;
         response.ContentType = "text/plain";
         response.ContentLength64 = body.Length;
