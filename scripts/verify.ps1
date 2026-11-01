@@ -45,13 +45,14 @@ if ($Coverage) {
         Remove-Item -Recurse -Force artifacts/coverage -ErrorAction SilentlyContinue
         dotnet test ReplayViewer.sln -c Release --nologo --no-build --collect:"XPlat Code Coverage" --results-directory artifacts/coverage
     }
-    # Gate on the measured baseline (62.3% line / 63.8% branch) minus ~2 points. It is not
-    # near 95% because the tray, installer and startup code is deliberately untested.
+    # Floor is 55%: a clean CI run reads ~58.4% line coverage while a local Windows run reads
+    # ~62.2%, because the two account for WinForms generated code differently. It still catches
+    # a collapse; raise it only after confirming both numbers.
     # Each threshold is its own argument, with no leading dash: "-key" is silently ignored,
     # and "lineCoverage=60;branchCoverage=60" is read as one int and fails to parse.
     Step "coverage gate" {
         dotnet tool restore
-        dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "minimumCoverageThresholds:lineCoverage=60" "minimumCoverageThresholds:branchCoverage=60"
+        dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "minimumCoverageThresholds:lineCoverage=55" "minimumCoverageThresholds:branchCoverage=55"
         Get-Content artifacts/coverage/report/Summary.txt
     }
 }
