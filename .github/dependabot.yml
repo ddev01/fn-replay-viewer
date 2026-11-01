@@ -7,6 +7,15 @@ updates:
     groups:
       nuget:
         patterns: ["*"]
+    ignore:
+      # 18.x switches to Microsoft.Testing.Platform, and VSTest is not a supported
+      # target on .NET 10 SDK, so `dotnet test` fails. Moving to MTP is a deliberate
+      # migration: opt into the new dotnet test experience, then update verify.ps1
+      # and ci.yml. xunit.v3 4.x moves to MTP for the same reason.
+      - dependency-name: Microsoft.NET.Test.Sdk
+        versions: [">=18"]
+      - dependency-name: xunit.v3
+        versions: [">=4"]
 
   - package-ecosystem: github-actions
     directory: "/"
