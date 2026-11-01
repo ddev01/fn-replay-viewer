@@ -80,10 +80,11 @@ internal sealed class LoopbackRoute : IAsyncDisposable
 
         try
         {
-            await _loop;
+            await _loop.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) when (ex is OperationCanceledException or TimeoutException)
         {
+            // A handler stuck past shutdown must fail the test, not hang the run forever.
         }
 
         Client.Dispose();
@@ -104,17 +105,32 @@ internal sealed class LoopbackRoute : IAsyncDisposable
                 return;
             }
 
+            // Dispatch per request, as ListenerHost does. Awaiting the handler inline lets one
+            // blocked route stall the listener, so no test could have two requests in flight.
+            _ = Task.Run(() => HandleAsync(context, cancellationToken), CancellationToken.None);
+        }
+    }
+
+    private async Task HandleAsync(HttpListenerContext context, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!await _handle(context, cancellationToken))
+            {
+                context.Response.StatusCode = UnhandledStatus;
+                context.Response.OutputStream.Close();
+            }
+        }
+        catch (Exception ex)
+        {
             try
             {
-                if (!await _handle(context, cancellationToken))
-                {
-                    context.Response.StatusCode = UnhandledStatus;
-                    context.Response.OutputStream.Close();
-                }
-            }
-            catch (Exception ex)
-            {
                 await WriteFailureAsync(context.Response, ex);
+            }
+            catch (Exception writeEx)
+                when (writeEx is HttpListenerException or ObjectDisposedException or IOException)
+            {
+                // The client is already gone; there is nowhere to write the failure.
             }
         }
     }
