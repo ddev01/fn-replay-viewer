@@ -43,7 +43,7 @@ if ($Branch) {
 
 Step "restore (locked)" { dotnet restore ReplayViewer.sln --locked-mode }
 Step "build" { dotnet build ReplayViewer.sln -c Release --nologo -warnaserror --no-restore }
-Step "test" { dotnet test ReplayViewer.sln -c Release --nologo --no-build }
+Step "test" { dotnet test ReplayViewer.sln -c Release --nologo --no-build --blame-hang-timeout 5m }
 Step "format" { dotnet format ReplayViewer.sln --verify-no-changes --no-restore }
 
 if ($Coverage) {

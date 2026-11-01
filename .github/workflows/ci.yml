@@ -36,7 +36,8 @@ jobs:
       - name: Test
         run: |
           Remove-Item -Recurse -Force artifacts/coverage -ErrorAction SilentlyContinue
-          dotnet test ReplayViewer.sln -c Release --nologo --no-build --collect:"XPlat Code Coverage" --results-directory artifacts/coverage
+          # A hung test must fail the job, not sit in the queue: this catches a deadlock in 5m.
+          dotnet test ReplayViewer.sln -c Release --nologo --no-build --blame-hang-timeout 5m --collect:"XPlat Code Coverage" --results-directory artifacts/coverage
 
       - name: Coverage gate
         run: |
