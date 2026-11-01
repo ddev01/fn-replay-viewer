@@ -32,9 +32,6 @@ $publishArgs = @(
     "-p:EnableCompressionInSingleFile=true",
     "-p:DebugType=None",
     "-p:DebugSymbols=false",
-    # Publish adds SDK-derived packages the lock file cannot cover; without this the
-    # publish restore rewrites packages.lock.json and breaks the next locked restore.
-    "-p:RestorePackagesWithLockFile=false",
     "-o", $publishDir
 )
 
@@ -42,7 +39,21 @@ if (-not [string]::IsNullOrWhiteSpace($env:NameFnPublicUrl)) {
     $publishArgs += "-p:NameFnPublicUrl=$($env:NameFnPublicUrl)"
 }
 
+# Publish restores an unlocked graph that includes SDK-supplied packages, which
+# rewrites packages.lock.json. Put them back so a local pack leaves the tree clean.
+$lockPaths = @(Get-ChildItem -Path $root -Recurse -Filter packages.lock.json -File |
+    ForEach-Object { $_.FullName })
+$lockBackup = @{}
+foreach ($path in $lockPaths) { $lockBackup[$path] = [System.IO.File]::ReadAllText($path) }
+
 dotnet @publishArgs
+
+foreach ($path in $lockPaths) {
+    if ([System.IO.File]::Exists($path)) {
+        [System.IO.File]::WriteAllText($path, $lockBackup[$path])
+    }
+}
+
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed"
 }
