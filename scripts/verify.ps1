@@ -27,7 +27,11 @@ if ($Branch) {
     Write-Host "==> checkout $Branch" -ForegroundColor Cyan
     git fetch origin --prune
     if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
-    git checkout -B $Branch "origin/$Branch"
+    # This clone is a disposable verification target: drop stray edits and untracked
+    # files so a branch that adds a file cannot abort the switch. Ignored paths
+    # (bin/obj/node_modules/artifacts) are left alone.
+    git clean -fdq
+    git checkout -f -B $Branch "origin/$Branch"
     if ($LASTEXITCODE -ne 0) { throw "git checkout $Branch failed" }
 }
 
