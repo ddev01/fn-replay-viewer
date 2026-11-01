@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0-windows7.0": {
+      "FortniteReplayReader": {
+        "type": "Transitive",
+        "resolved": "3.1.0",
+        "contentHash": "VnDEtaRUdxFcKj0NhSVkTrfc3XVXDsyKBBYUC171mBSWRzSwZu0kYcC47cIlMStIRi8mcng32Pl/4pCn8smxRw==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.11",
+          "Unreal.Core": "3.1.0",
+          "Unreal.Encryption": "3.1.0"
+        }
+      },
+      "Microsoft.Extensions.DependencyInjection.Abstractions": {
+        "type": "Transitive",
+        "resolved": "10.0.11",
+        "contentHash": "/a1aJz4m7ylhEDf25ugQChLQoN5XwoGjWw/BoR/ZWWKsO1v4DdJElS1uyngahz4B/eOzjFk1KNTkarRLE5wsIg=="
+      },
+      "Microsoft.Extensions.Logging.Abstractions": {
+        "type": "Transitive",
+        "resolved": "10.0.11",
+        "contentHash": "Ljd0Uxoq5XpScD2Bg0nM/r3mwx7Ao5Uq24eo2ARxbGvqJ7Zht6rt2cJtwVRH4Cv+1ZVMdXz6TB43KbpmsxRrvQ==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.11"
+        }
+      },
+      "OozSharp": {
+        "type": "Transitive",
+        "resolved": "3.1.0",
+        "contentHash": "6Af6JTtiXiXRMjVAgNyQwEqehlxiwszm+RLSFc9AqRMt20OXhmLvQWrmJS44LawWDNo30LiSktbMu8o6ruiA6g=="
+      },
+      "Unreal.Core": {
+        "type": "Transitive",
+        "resolved": "3.1.0",
+        "contentHash": "yGiEeZ7nueAwFeSyeUtqkIeSJb3VKY3yu7Z5s87+2l8URlMTSdlXjBx+3HhnMSmb3Tz+YiPrtxTTDbKzYyIbbg==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.11"
+        }
+      },
+      "Unreal.Encryption": {
+        "type": "Transitive",
+        "resolved": "3.1.0",
+        "contentHash": "ZO7ZkEWYQ2ifNJsOXW+3GRGVaDOUstLZJ+U9ebCLkJiODDmKDSMu5aBmMrE66QTjV2v3OjdhMD5mzA1JQeM2cA==",
+        "dependencies": {
+          "OozSharp": "3.1.0"
+        }
+      },
+      "replayviewer.core": {
+        "type": "Project",
+        "dependencies": {
+          "FortniteReplayReader": "[3.1.0, )"
+        }
+      }
+    }
+  }
+}
