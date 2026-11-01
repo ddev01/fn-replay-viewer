@@ -34,7 +34,13 @@ jobs:
         run: dotnet build ReplayViewer.sln -c Release --nologo -warnaserror --no-restore
 
       - name: Test
-        run: dotnet test ReplayViewer.sln -c Release --nologo --no-build
+        run: dotnet test ReplayViewer.sln -c Release --nologo --no-build --collect:"XPlat Code Coverage" --results-directory artifacts/coverage
+
+      - name: Coverage gate
+        run: |
+          dotnet tool restore
+          dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "-minimumCoverageThresholds:lineCoverage=60;branchCoverage=60"
+          Get-Content artifacts/coverage/report/Summary.txt | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
 
       - name: Format
         run: dotnet format ReplayViewer.sln --verify-no-changes --no-restore

@@ -44,6 +44,13 @@ if ($Coverage) {
     Step "coverage" {
         dotnet test ReplayViewer.sln -c Release --nologo --no-build --collect:"XPlat Code Coverage" --results-directory artifacts/coverage
     }
+    # Gate on the measured baseline (62.3% line / 63.8% branch) minus ~2 points. It is not
+    # near 95% because the tray, installer and startup code is deliberately untested.
+    Step "coverage gate" {
+        dotnet tool restore
+        dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "-minimumCoverageThresholds:lineCoverage=60;branchCoverage=60"
+        Get-Content artifacts/coverage/report/Summary.txt
+    }
 }
 
 $hasFrontend = -not $SkipFrontend -and (Test-Path (Join-Path $root "package.json"))
