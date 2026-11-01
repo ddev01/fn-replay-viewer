@@ -16,6 +16,8 @@
     <Authors>Replay Viewer</Authors>
     <Copyright>Copyright (c) Replay Viewer contributors</Copyright>
     <NameFnPublicUrl Condition="'$(NameFnPublicUrl)' == ''">https://named.peltux.xyz</NameFnPublicUrl>
+    <!-- Restore is reproducible: versions are locked in packages.lock.json. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <!-- Imported last so a local override (including an empty one) wins over the defaults above. -->
   <Import Project="Directory.Build.local.props" Condition="Exists('Directory.Build.local.props')" />

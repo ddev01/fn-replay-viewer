@@ -8,3 +8,8 @@ artifacts/
 *.zip
 logs/
 tools/innosetup/
+node_modules/
+TestResults/
+coverage/
+playwright-report/
+test-results/

@@ -1,0 +1,7 @@
+# Windows-first repo: keep one line ending on every clone so diffs stay honest.
+* text=auto eol=crlf
+
+*.png binary
+*.ico binary
+*.zip binary
+*.exe binary
