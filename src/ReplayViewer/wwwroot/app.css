@@ -220,11 +220,12 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
   padding: 2px 7px;
   border-radius: 999px;
   background: #2a3346;
-  color: var(--muted);
+  /* The pill background is dark in both themes, so --muted (4.19:1) is too faint. */
+  color: #a9b4c7;
   text-transform: lowercase;
 }
-.badge.you { background: #1c3b2a; color: var(--you); }
-.badge.fill { background: #3a2f24; color: var(--fill); }
+.badge.you { background: #1c3b2a; color: #7ee0a3; }
+.badge.fill { background: #3a2f24; color: #c9a27a; }
 .kills { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .timelines { margin-top: 32px; scroll-margin-top: 72px; }
 .tabs, .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }

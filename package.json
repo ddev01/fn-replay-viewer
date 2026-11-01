@@ -1,0 +1,25 @@
+{
+  "name": "replay-viewer-ui",
+  "private": true,
+  "type": "module",
+  "description": "Lint, typecheck and UI smoke tests for the ReplayViewer wwwroot assets.",
+  "scripts": {
+    "lint": "npm run lint:js && npm run lint:css && npm run format:check",
+    "lint:js": "eslint src/ReplayViewer/wwwroot tests/ui",
+    "lint:css": "stylelint src/ReplayViewer/wwwroot/app.css",
+    "format:check": "prettier --check \"src/ReplayViewer/wwwroot/*.{js,d.ts}\" \"tests/ui/**/*.{js,mjs}\" \"package.json\" \"jsconfig.json\" \"eslint.config.js\" \"playwright.config.mjs\" \".prettierrc\" \".stylelintrc.json\"",
+    "typecheck": "tsc -p jsconfig.json",
+    "test:ui": "playwright test"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10",
+    "stylelint": "^17.16.0",
+    "stylelint-config-recommended": "^18.0.0",
+    "typescript": "^7.0.2"
+  }
+}
