@@ -54,7 +54,10 @@ public sealed class ListenerHostTests
     {
         var routes = new IHttpRoute[]
         {
-            new StubRoute(_ => true, (_, _) => throw new InvalidOperationException("boom")),
+            new StubRoute(
+                request => request.Url!.AbsolutePath == "/explodes",
+                (_, _) => throw new InvalidOperationException("boom")
+            ),
             new StubRoute(request => request.Url!.AbsolutePath == "/after", WriteBody),
         };
         var (host, baseUri) = StartWithFreePort(routes);
