@@ -19,6 +19,9 @@
     <ProjectReference Include="..\ReplayViewer.Core\ReplayViewer.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="ReplayViewer.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <Content Include="wwwroot\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

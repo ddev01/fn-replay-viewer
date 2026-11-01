@@ -2,16 +2,16 @@ namespace ReplayViewer.Tests;
 
 public class FortniteReplayProbeTests
 {
-    [SkippableFact]
+    [Fact]
     public async Task Parses_a_local_demo_when_present()
     {
         var file = LatestFinishedReplay();
-        Skip.If(file is null);
-        var copy = ReplayFileAccess.CopyWithReadWriteShare(file);
+        Assert.SkipWhen(file is null, "No finished replay in the Demos folder.");
+        var copy = ReplayFileAccess.CopyWithReadWriteShare(file!);
         try
         {
             var probe = new FortniteReplayProbe();
-            var snapshot = await probe.ReadAsync(copy, CancellationToken.None);
+            var snapshot = await probe.ReadAsync(copy, TestContext.Current.CancellationToken);
             Assert.NotEmpty(snapshot.Players);
         }
         finally
@@ -20,15 +20,18 @@ public class FortniteReplayProbeTests
         }
     }
 
-    [SkippableFact]
+    [Fact]
     public async Task Owner_timeline_does_not_repeat_the_same_elim()
     {
         var file = LatestFinishedReplay();
-        Skip.If(file is null);
-        var copy = ReplayFileAccess.CopyWithReadWriteShare(file);
+        Assert.SkipWhen(file is null, "No finished replay in the Demos folder.");
+        var copy = ReplayFileAccess.CopyWithReadWriteShare(file!);
         try
         {
-            var snapshot = await new FortniteReplayProbe().ReadAsync(copy, CancellationToken.None);
+            var snapshot = await new FortniteReplayProbe().ReadAsync(
+                copy,
+                TestContext.Current.CancellationToken
+            );
             var you = snapshot.Players.First(p => p.IsReplayOwner);
             var rows = snapshot
                 .Events.Where(e =>
@@ -63,9 +66,11 @@ public class FortniteReplayProbeTests
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
 
+#pragma warning disable xUnit1051 // A cancelled token is the point of this test.
         Assert.ThrowsAny<OperationCanceledException>(() =>
             new FortniteReplayProbe().Read("missing.replay", cancelled.Token)
         );
+#pragma warning restore xUnit1051
     }
 
     private static string? LatestFinishedReplay()

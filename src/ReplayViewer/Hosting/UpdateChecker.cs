@@ -104,7 +104,7 @@ internal static class UpdateChecker
         );
     }
 
-    private static void VerifyDigest(string path, string? digest)
+    internal static void VerifyDigest(string path, string? digest)
     {
         if (string.IsNullOrWhiteSpace(digest))
         {
