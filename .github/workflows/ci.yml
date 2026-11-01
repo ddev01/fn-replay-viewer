@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: "10.0.x"
+          cache: true
+
+      - name: Restore (locked)
+        run: dotnet restore ReplayViewer.sln --locked-mode
+
+      - name: Build
+        run: dotnet build ReplayViewer.sln -c Release --nologo -warnaserror --no-restore
+
+      - name: Test
+        run: dotnet test ReplayViewer.sln -c Release --nologo --no-build
+
+      - name: Format
+        run: dotnet format ReplayViewer.sln --verify-no-changes --no-restore
+
+      # Frontend checks land with package.json; until then these steps skip.
+      - name: npm ci
+        if: hashFiles('package.json') != ''
+        run: npm ci
+
+      - name: Playwright browsers
+        if: hashFiles('package.json') != ''
+        run: npx --no-install playwright install chromium
+
+      - name: Lint
+        if: hashFiles('package.json') != ''
+        run: npm run lint
+
+      - name: Typecheck
+        if: hashFiles('package.json') != ''
+        run: npm run typecheck
+
+      - name: UI tests
+        if: hashFiles('package.json') != ''
+        run: npm run test:ui
