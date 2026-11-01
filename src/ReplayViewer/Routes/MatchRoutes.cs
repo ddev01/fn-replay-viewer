@@ -179,13 +179,26 @@ internal sealed class MatchRoutes : IHttpRoute
 
         using var reader = new StreamReader(request.InputStream, request.ContentEncoding);
         var buffer = new char[MaxBodyBytes + 1];
-        var read = await reader.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)
-            .ConfigureAwait(false);
-        if (read > MaxBodyBytes)
+        // One ReadAsync returns what has arrived, not the whole body, so a body split across
+        // segments would be truncated and fail to parse. Read until the buffer is full or EOF.
+        var total = 0;
+        while (total < buffer.Length)
+        {
+            var read = await reader.ReadAsync(buffer.AsMemory(total), cancellationToken)
+                .ConfigureAwait(false);
+            if (read == 0)
+            {
+                break;
+            }
+
+            total += read;
+        }
+
+        if (total > MaxBodyBytes)
         {
             return null;
         }
 
-        return new string(buffer, 0, read);
+        return new string(buffer, 0, total);
     }
 }

@@ -41,25 +41,5 @@ internal static class HttpJson
         await WriteJsonAsync(response, new ErrorBody(error), status).ConfigureAwait(false);
     }
 
-    public static async Task WriteBytesAsync(
-        HttpListenerResponse response,
-        byte[] body,
-        string contentType,
-        int status = 200,
-        string? cacheControl = null
-    )
-    {
-        response.StatusCode = status;
-        response.ContentType = contentType;
-        if (!string.IsNullOrWhiteSpace(cacheControl))
-        {
-            response.AddHeader("Cache-Control", cacheControl);
-        }
-
-        response.ContentLength64 = body.Length;
-        await response.OutputStream.WriteAsync(body).ConfigureAwait(false);
-        response.OutputStream.Close();
-    }
-
     private sealed record ErrorBody(string Error);
 }

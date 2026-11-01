@@ -69,6 +69,17 @@ test("renders the summary, team cards and roster players", async ({ page }) => {
   await expect(page.locator("#timeline li").first()).toBeVisible();
 });
 
+test("a failed scrape reports it instead of leaving Scraping… up", async ({ page }) => {
+  await page.route("**/api/scrape", (route) => route.abort());
+  await expect(page.locator("#roster .team")).toHaveCount(2);
+
+  const button = page.locator("#scrape");
+  await button.click();
+
+  await expect(page.locator("#status")).toContainText("Could not reach Replay Viewer");
+  await expect(button).toBeEnabled();
+});
+
 test("has no serious or critical accessibility violations", async ({ page }) => {
   await expect(page.locator("#roster .team")).toHaveCount(2);
 

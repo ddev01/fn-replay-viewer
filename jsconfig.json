@@ -6,5 +6,8 @@
     "target": "es2022",
     "lib": ["es2022", "dom", "dom.iterable"]
   },
-  "include": ["src/ReplayViewer/wwwroot/**/*.js", "src/ReplayViewer/wwwroot/**/*.d.ts"]
+  "include": [
+    "src/ReplayViewer/wwwroot/**/*.js",
+    "src/ReplayViewer/types/**/*.d.ts"
+  ]
 }

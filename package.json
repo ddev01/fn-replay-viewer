@@ -7,7 +7,7 @@
     "lint": "npm run lint:js && npm run lint:css && npm run format:check",
     "lint:js": "eslint src/ReplayViewer/wwwroot tests/ui",
     "lint:css": "stylelint src/ReplayViewer/wwwroot/app.css",
-    "format:check": "prettier --check \"src/ReplayViewer/wwwroot/*.{js,d.ts}\" \"tests/ui/**/*.{js,mjs}\" \"package.json\" \"jsconfig.json\" \"eslint.config.js\" \"playwright.config.mjs\" \".prettierrc\" \".stylelintrc.json\"",
+    "format:check": "prettier --check \"src/ReplayViewer/wwwroot/*.js\" \"src/ReplayViewer/types/*.d.ts\" \"tests/ui/**/*.{js,mjs}\" \"package.json\" \"jsconfig.json\" \"eslint.config.js\" \"playwright.config.mjs\" \".prettierrc\" \".stylelintrc.json\"",
     "typecheck": "tsc -p jsconfig.json",
     "test:ui": "playwright test"
   },

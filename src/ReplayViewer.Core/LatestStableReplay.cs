@@ -39,6 +39,13 @@ public static class LatestStableReplay
         }
 
         newest.Refresh();
+        if (!newest.Exists)
+        {
+            // Deleted between the listing and the refresh; a missing FileInfo reports 1601,
+            // which would otherwise look stable and be returned as a path that is gone.
+            return new LatestStablePick(null, StillWriting: false);
+        }
+
         var lastWrite = DateTime.SpecifyKind(newest.LastWriteTimeUtc, DateTimeKind.Utc);
         if (utcNow - lastWrite >= wait)
         {

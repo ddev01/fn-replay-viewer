@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
 
@@ -194,6 +195,42 @@ public sealed class MatchRoutesTests : IAsyncLifetime
             "demo.replay",
             await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
         );
+    }
+
+    [Fact]
+    public async Task Post_scrape_reads_a_body_that_arrives_in_two_parts()
+    {
+        ResetLastMatch();
+        var body = """{"path":"demo.replay"}""";
+        var port = _server.BaseUri.Port;
+        var head = Encoding.ASCII.GetBytes(
+            $"POST /api/scrape HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n"
+                + $"Content-Type: application/json\r\nContent-Length: {body.Length}\r\n"
+                + "Connection: close\r\n\r\n"
+        );
+
+        using var client = new TcpClient();
+        await client.ConnectAsync(IPAddress.Loopback, port, TestContext.Current.CancellationToken);
+        await using var stream = client.GetStream();
+        await stream.WriteAsync(head, TestContext.Current.CancellationToken);
+        // Send the opening brace alone, so a single ReadAsync sees only that.
+        await stream.WriteAsync(
+            Encoding.ASCII.GetBytes(body[..1]),
+            TestContext.Current.CancellationToken
+        );
+        await stream.FlushAsync(TestContext.Current.CancellationToken);
+        await Task.Delay(150, TestContext.Current.CancellationToken);
+        await stream.WriteAsync(
+            Encoding.ASCII.GetBytes(body[1..]),
+            TestContext.Current.CancellationToken
+        );
+        await stream.FlushAsync(TestContext.Current.CancellationToken);
+
+        using var reader = new StreamReader(stream);
+        var raw = await reader.ReadToEndAsync(TestContext.Current.CancellationToken);
+
+        Assert.StartsWith("HTTP/1.1 200", raw, StringComparison.Ordinal);
+        Assert.Equal("demo.replay", _scraper.LastPath);
     }
 
     private async Task<HttpResponseMessage> Post(string body, string contentType)

@@ -74,11 +74,9 @@ internal static class UpdateChecker
     /// <summary>Downloads, verifies and extracts the update; returns the new executable path.</summary>
     public static async Task<string> PrepareAsync(Available update, CancellationToken cancellationToken)
     {
-        var dir = Path.Combine(
-            Path.GetTempPath(),
-            "ReplayViewerUpdate",
-            Guid.NewGuid().ToString("N")
-        );
+        var root = Path.Combine(Path.GetTempPath(), "ReplayViewerUpdate");
+        var dir = Path.Combine(root, Guid.NewGuid().ToString("N"));
+        PruneOldUpdates(root, keep: dir);
         Directory.CreateDirectory(dir);
         var zipPath = Path.Combine(dir, "update.zip");
         using (var http = CreateClient(TimeSpan.FromMinutes(5)))
@@ -102,6 +100,35 @@ internal static class UpdateChecker
             .FirstOrDefault() ?? throw new FileNotFoundException(
             $"Update package did not contain {AppPaths.ExeFileName}."
         );
+    }
+
+    /// <summary>
+    /// Each update extracts a fresh payload; without this they accumulate in temp forever.
+    /// Best effort: a folder a previous update still has open is not worth failing over.
+    /// </summary>
+    internal static void PruneOldUpdates(string root, string keep)
+    {
+        if (!Directory.Exists(root))
+        {
+            return;
+        }
+
+        foreach (var stale in Directory.EnumerateDirectories(root))
+        {
+            if (string.Equals(stale, keep, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            try
+            {
+                Directory.Delete(stale, recursive: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                FileLog.Info($"could not remove old update folder {stale}: {ex.Message}");
+            }
+        }
     }
 
     internal static void VerifyDigest(string path, string? digest)

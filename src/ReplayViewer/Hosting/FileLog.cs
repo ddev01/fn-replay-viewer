@@ -32,9 +32,10 @@ internal static class FileLog
                 File.AppendAllText(ActivePath, line);
             }
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Logging must not crash the host.
+            // Logging must not crash the host: a locked-down profile, antivirus or a replaced
+            // log folder throws here, and the caller is usually already handling a failure.
         }
     }
 
