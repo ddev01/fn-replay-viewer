@@ -34,6 +34,6 @@ That writes:
 - `artifacts/installer/ReplayViewer-Setup-<version>.exe`
 - `artifacts/ReplayViewer-win-x64-<version>.zip`
 
-Push a matching git tag (for example `v1.0.4`) to have GitHub Actions attach both files to the release.
+Push a matching git tag (for example `v1.0.5`) to have GitHub Actions attach both files to the release.
 
-NameFN lookup is optional. Copy `Directory.Build.local.props.example` to `Directory.Build.local.props` and set `NameFnPublicUrl` to the public origin (no trailing slash). Rebuild so the assembly metadata is baked in. Leave it unset to hide the NameFN button. For CI, set the `NAME_FN_PUBLIC_URL` repository secret.
+NameFN lookup uses `https://named.peltux.xyz` by default (same as 1.0.2). Override it by copying `Directory.Build.local.props.example` to `Directory.Build.local.props` and setting `NameFnPublicUrl`, or by setting the `NAME_FN_PUBLIC_URL` repository secret for CI. An empty override hides the NameFN button.
