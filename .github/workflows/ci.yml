@@ -47,7 +47,7 @@ jobs:
           # catches a collapse; raise it only after confirming both numbers.
           dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "minimumCoverageThresholds:lineCoverage=55" "minimumCoverageThresholds:branchCoverage=55"
           Get-Content artifacts/coverage/report/Summary.txt | Tee-Object -Variable summary | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
-          $summary | Select-String "Line coverage|Branch coverage"
+          $summary
 
       - name: Format
         run: dotnet format ReplayViewer.sln --verify-no-changes --no-restore
