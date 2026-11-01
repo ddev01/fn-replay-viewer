@@ -128,11 +128,14 @@ public sealed class InstallPayloadTests : IDisposable
         var destinationFile = Path.Combine(Destination, "ReplayViewer.exe");
         Write(destinationFile, "v1");
         var hold = new FileStream(destinationFile, FileMode.Open, FileAccess.Read, FileShare.None);
-        var release = Task.Run(async () =>
-        {
-            await Task.Delay(800);
-            hold.Dispose();
-        });
+        var release = Task.Run(
+            async () =>
+            {
+                await Task.Delay(800, TestContext.Current.CancellationToken);
+                hold.Dispose();
+            },
+            TestContext.Current.CancellationToken
+        );
 
         try
         {
