@@ -341,6 +341,13 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
   -webkit-mask-size: 14px 14px;
   mask-size: 14px 14px;
 }
+/* The icon URL lives here, not in an inline style attribute: the page is served with
+   style-src 'self', which blocks style="--icon:url(...)" and leaves a solid block. */
+.icon-kill { --icon: url("/icons/kill.svg"); }
+.icon-knock { --icon: url("/icons/knock.svg"); }
+.icon-arrow { --icon: url("/icons/arrow.svg"); }
+.icon-external { --icon: url("/icons/external.svg"); }
+.icon-apple { --icon: url("/icons/apple.svg"); }
 .icon.event {
   width: 16px;
   height: 16px;

@@ -29,6 +29,27 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
+test("themed icons are masked, not painted as solid blocks", async ({ page }) => {
+  const violations = [];
+  page.on("console", (message) => {
+    if (message.text().includes("Content Security Policy")) {
+      violations.push(message.text());
+    }
+  });
+  await page.reload();
+  await expect(page.locator("#roster .team")).toHaveCount(2);
+
+  // An inline style attribute holding --icon is blocked by style-src 'self', which leaves
+  // mask-image: none and the element paints a solid currentColor block instead of the icon.
+  const masks = await page
+    .locator(".icon.themed")
+    .evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).maskImage));
+  expect(masks.length).toBeGreaterThan(0);
+  expect(masks.filter((mask) => mask === "none")).toEqual([]);
+
+  expect(violations).toEqual([]);
+});
+
 test("renders the summary, team cards and roster players", async ({ page }) => {
   const summary = page.locator("#summary");
   await expect(summary).toBeVisible();

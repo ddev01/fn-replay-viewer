@@ -305,7 +305,10 @@ function anonymousLabel(player) {
  * @returns {string}
  */
 function themedIcon(file, title, extraClass) {
-  return `<span class="icon themed ${extraClass || ""}" style="--icon:url('/icons/${file}')" title="${escapeHtml(title)}"></span>`;
+  // The URL is set by the .icon-<name> rule in app.css. An inline style attribute would be
+  // blocked by the page's Content-Security-Policy and the icon would render as a solid block.
+  const name = file.replace(/\.svg$/, "");
+  return `<span class="icon themed icon-${name} ${extraClass || ""}" title="${escapeHtml(title)}"></span>`;
 }
 
 /**
