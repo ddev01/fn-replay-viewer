@@ -10,6 +10,13 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 
+# One verify run at a time: agents share this checkout and would collide on obj/ and on the branch switch.
+$mutex = New-Object System.Threading.Mutex($false, "Global\ReplayViewerVerify")
+if (-not $mutex.WaitOne([TimeSpan]::FromMinutes(40))) {
+    throw "another verify run is already in progress"
+}
+try {
+
 function Step([string]$name, [scriptblock]$body) {
     Write-Host "==> $name" -ForegroundColor Cyan
     & $body
@@ -49,3 +56,8 @@ if ($Pack) {
 }
 
 Write-Host "verify: OK" -ForegroundColor Green
+}
+finally {
+    $mutex.ReleaseMutex()
+    $mutex.Dispose()
+}
