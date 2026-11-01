@@ -13,3 +13,6 @@ TestResults/
 coverage/
 playwright-report/
 test-results/
+
+# Playwright MCP session output
+.playwright-mcp/

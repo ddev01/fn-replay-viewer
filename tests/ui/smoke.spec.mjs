@@ -43,7 +43,9 @@ test("themed icons are masked, not painted as solid blocks", async ({ page }) =>
   // mask-image: none and the element paints a solid currentColor block instead of the icon.
   const masks = await page
     .locator(".icon.themed")
-    .evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).maskImage));
+    .evaluateAll((nodes) =>
+      nodes.map((node) => node.ownerDocument.defaultView.getComputedStyle(node).maskImage)
+    );
   expect(masks.length).toBeGreaterThan(0);
   expect(masks.filter((mask) => mask === "none")).toEqual([]);
 
