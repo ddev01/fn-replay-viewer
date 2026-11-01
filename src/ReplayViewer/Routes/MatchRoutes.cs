@@ -162,6 +162,32 @@ internal sealed class MatchRoutes : IHttpRoute
         }
     }
 
+    /// <summary>
+    /// Fills <paramref name="buffer"/> from <paramref name="reader"/> until the stream ends or the
+    /// buffer is full. A single ReadAsync returns only what has arrived, not the whole body.
+    /// </summary>
+    internal static async Task<int> ReadAllAsync(
+        StreamReader reader,
+        char[] buffer,
+        CancellationToken cancellationToken
+    )
+    {
+        var total = 0;
+        while (total < buffer.Length)
+        {
+            var read = await reader.ReadAsync(buffer.AsMemory(total), cancellationToken)
+                .ConfigureAwait(false);
+            if (read == 0)
+            {
+                break;
+            }
+
+            total += read;
+        }
+
+        return total;
+    }
+
     private static async Task<string?> ReadBodyAsync(
         HttpListenerRequest request,
         CancellationToken cancellationToken
@@ -179,21 +205,7 @@ internal sealed class MatchRoutes : IHttpRoute
 
         using var reader = new StreamReader(request.InputStream, request.ContentEncoding);
         var buffer = new char[MaxBodyBytes + 1];
-        // One ReadAsync returns what has arrived, not the whole body, so a body split across
-        // segments would be truncated and fail to parse. Read until the buffer is full or EOF.
-        var total = 0;
-        while (total < buffer.Length)
-        {
-            var read = await reader.ReadAsync(buffer.AsMemory(total), cancellationToken)
-                .ConfigureAwait(false);
-            if (read == 0)
-            {
-                break;
-            }
-
-            total += read;
-        }
-
+        var total = await ReadAllAsync(reader, buffer, cancellationToken).ConfigureAwait(false);
         if (total > MaxBodyBytes)
         {
             return null;

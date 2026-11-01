@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
 
@@ -198,39 +197,23 @@ public sealed class MatchRoutesTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Post_scrape_reads_a_body_that_arrives_in_two_parts()
+    public async Task Body_read_continues_until_the_stream_ends()
     {
-        ResetLastMatch();
-        var body = """{"path":"demo.replay"}""";
-        var port = _server.BaseUri.Port;
-        var head = Encoding.ASCII.GetBytes(
-            $"POST /api/scrape HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n"
-                + $"Content-Type: application/json\r\nContent-Length: {body.Length}\r\n"
-                + "Connection: close\r\n\r\n"
-        );
+        // A stream that hands back one byte per read stands in for a body that arrives in
+        // pieces. HttpListener buffers the entity body, so this cannot be forced over the wire.
+        var payload = """{"path":"demo.replay"}""";
+        using var stream = new OneByteStream(Encoding.UTF8.GetBytes(payload));
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        var buffer = new char[1024];
 
-        using var client = new TcpClient();
-        await client.ConnectAsync(IPAddress.Loopback, port, TestContext.Current.CancellationToken);
-        await using var stream = client.GetStream();
-        await stream.WriteAsync(head, TestContext.Current.CancellationToken);
-        // Send the opening brace alone, so a single ReadAsync sees only that.
-        await stream.WriteAsync(
-            Encoding.ASCII.GetBytes(body[..1]),
+        var total = await MatchRoutes.ReadAllAsync(
+            reader,
+            buffer,
             TestContext.Current.CancellationToken
         );
-        await stream.FlushAsync(TestContext.Current.CancellationToken);
-        await Task.Delay(150, TestContext.Current.CancellationToken);
-        await stream.WriteAsync(
-            Encoding.ASCII.GetBytes(body[1..]),
-            TestContext.Current.CancellationToken
-        );
-        await stream.FlushAsync(TestContext.Current.CancellationToken);
 
-        using var reader = new StreamReader(stream);
-        var raw = await reader.ReadToEndAsync(TestContext.Current.CancellationToken);
-
-        Assert.StartsWith("HTTP/1.1 200", raw, StringComparison.Ordinal);
-        Assert.Equal("demo.replay", _scraper.LastPath);
+        Assert.Equal(payload.Length, total);
+        Assert.Equal(payload, new string(buffer, 0, total));
     }
 
     private async Task<HttpResponseMessage> Post(string body, string contentType)
@@ -248,6 +231,43 @@ public sealed class MatchRoutesTests : IAsyncLifetime
         typeof(MatchRoutes)
             .GetField("s_last", BindingFlags.NonPublic | BindingFlags.Static)!
             .SetValue(null, null);
+
+    private sealed class OneByteStream(byte[] data) : Stream
+    {
+        private int _offset;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => data.Length;
+
+        public override long Position
+        {
+            get => _offset;
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush() { }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (_offset >= data.Length || count == 0)
+            {
+                return 0;
+            }
+
+            buffer[offset] = data[_offset++];
+            return 1;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) =>
+            throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+    }
 
     private sealed class FakeScraper : IMatchScraper
     {
