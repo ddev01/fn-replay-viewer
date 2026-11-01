@@ -42,10 +42,9 @@ jobs:
         run: |
           dotnet tool restore
           # One argument per threshold, no leading dash, no ';' separator.
-          # The floor is 55% because a clean CI run reads ~58.4% line coverage while a local
-          # Windows run reads ~62.2% (WinForms generated-code accounting differs). It still
-          # catches a collapse; raise it only after confirming both numbers.
-          dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "minimumCoverageThresholds:lineCoverage=55" "minimumCoverageThresholds:branchCoverage=55"
+          # Floor is two points under a clean CI run (65.0% line / 63.2% branch). A local run
+          # reads ~67% / 66% because the two replay-dependent tests skip without a demo file.
+          dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "minimumCoverageThresholds:lineCoverage=63" "minimumCoverageThresholds:branchCoverage=61"
           Get-Content artifacts/coverage/report/Summary.txt | Tee-Object -Variable summary | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
           $summary
 

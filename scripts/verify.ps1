@@ -45,14 +45,14 @@ if ($Coverage) {
         Remove-Item -Recurse -Force artifacts/coverage -ErrorAction SilentlyContinue
         dotnet test ReplayViewer.sln -c Release --nologo --no-build --collect:"XPlat Code Coverage" --results-directory artifacts/coverage
     }
-    # Floor is 55%: a clean CI run reads ~58.4% line coverage while a local Windows run reads
-    # ~62.2%, because the two account for WinForms generated code differently. It still catches
-    # a collapse; raise it only after confirming both numbers.
+    # Floor is set from a clean CI run (65.0% line / 63.2% branch), two points down.
+    # A local run reads ~67% / 66%: the two tests in FortniteReplayProbeTests need a real
+    # .replay in the Demos folder and skip on CI, which accounts for the difference.
     # Each threshold is its own argument, with no leading dash: "-key" is silently ignored,
     # and "lineCoverage=60;branchCoverage=60" is read as one int and fails to parse.
     Step "coverage gate" {
         dotnet tool restore
-        dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "minimumCoverageThresholds:lineCoverage=55" "minimumCoverageThresholds:branchCoverage=55"
+        dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "minimumCoverageThresholds:lineCoverage=63" "minimumCoverageThresholds:branchCoverage=61"
         Get-Content artifacts/coverage/report/Summary.txt
     }
 }

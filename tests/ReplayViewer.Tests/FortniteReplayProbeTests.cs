@@ -2,6 +2,8 @@ namespace ReplayViewer.Tests;
 
 public class FortniteReplayProbeTests
 {
+    // These two need a real .replay in the Demos folder, so they skip on CI. The copy they
+    // depend on is covered deterministically by ReplayFileAccessTests.
     [Fact]
     public async Task Parses_a_local_demo_when_present()
     {
