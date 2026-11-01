@@ -39,8 +39,6 @@ public sealed class StaticFilesTests : IAsyncLifetime
         File.Delete(Path.Combine(OutsideRoot, "outside.txt"));
     }
 
-    private string OutsideRoot => Path.GetDirectoryName(_root)!;
-
     [Fact]
     public async Task Root_serves_index_html()
     {
