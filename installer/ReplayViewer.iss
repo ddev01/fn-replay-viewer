@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.5"
+  #define MyAppVersion "1.0.6"
 #endif
 
 #define MyAppName "Replay Viewer"
@@ -30,20 +30,14 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-CloseApplications=no
+CloseApplications=yes
 RestartApplications=no
+AppMutex=Local\ReplayViewer.SingleInstance
 MinVersion=10.0.17763
 UsePreviousAppDir=yes
 ChangesAssociations=no
 
 [Code]
-procedure CloseRunningApp;
-var
-  ResultCode: Integer;
-begin
-  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM ReplayViewer.exe /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-end;
-
 procedure CleanLegacyBundle;
 var
   AppDir: String;
@@ -67,12 +61,6 @@ begin
   DeleteFile(AppDir + '\update.zip');
 end;
 
-function InitializeSetup(): Boolean;
-begin
-  CloseRunningApp;
-  Result := True;
-end;
-
 procedure RemoveLegacyLogonTask;
 var
   ResultCode: Integer;
@@ -84,6 +72,9 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   CleanLegacyBundle;
   RemoveLegacyLogonTask;
+  // [Registry] only writes the value when the task is selected, so clear a previous choice.
+  if not WizardIsTaskSelected('autostart') then
+    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'ReplayViewer');
   Result := '';
 end;
 
@@ -92,9 +83,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
+Name: "autostart"; Description: "Start Replay Viewer when I sign in"; GroupDescription: "Startup:"
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "ReplayViewer"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "ReplayViewer"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue; Tasks: autostart
 
 [Files]
 Source: "..\artifacts\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -104,7 +96,7 @@ Name: "{userprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--install"; StatusMsg: "Creating Start Menu shortcut and sign-in task..."; Flags: runhidden waituntilterminated
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--install"; StatusMsg: "Creating the Start Menu shortcut..."; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch Replay Viewer"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]

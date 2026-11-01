@@ -1,58 +1,196 @@
+using System.Diagnostics;
+using ReplayViewer.Core;
+
 namespace ReplayViewer;
 
 internal sealed class TrayApp : ApplicationContext
 {
+    private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(6);
+
     private readonly NotifyIcon _icon;
     private readonly ListenerHost _host;
+    private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _updateItem;
-    private readonly SynchronizationContext? _ui = SynchronizationContext.Current;
-    private Action? _applyUpdate;
+    private readonly ToolStripMenuItem _startupItem;
+    private readonly System.Windows.Forms.Timer _timer = new();
+    private UpdateChecker.Available? _available;
+    private bool _checking;
 
     public TrayApp(ListenerHost host)
     {
         _host = host;
-        var menu = new ContextMenuStrip();
-        menu.Items.Add("Open", null, (_, _) => SingleInstance.OpenBrowser());
-        _updateItem = new ToolStripMenuItem("Update") { Enabled = false };
-        _updateItem.Click += (_, _) => _applyUpdate?.Invoke();
-        menu.Items.Add(_updateItem);
-        menu.Items.Add("Exit", null, (_, _) => ExitThread());
+
+        _menu = new ContextMenuStrip();
+        _menu.Items.Add("Open", null, (_, _) => SingleInstance.OpenBrowser());
+
+        _updateItem = new ToolStripMenuItem("Check for updates");
+        _updateItem.Click += async (_, _) => await OnUpdateClickedAsync();
+        _menu.Items.Add(_updateItem);
+
+        _startupItem = new ToolStripMenuItem("Start with Windows");
+        _startupItem.Click += (_, _) => ToggleStartup();
+        _menu.Items.Add(_startupItem);
+
+        _menu.Items.Add(new ToolStripSeparator());
+        _menu.Items.Add("Exit", null, (_, _) => ExitThread());
+        _menu.Opening += (_, _) => _startupItem.Checked = InstallLayout.IsStartupRegistered();
+
         _icon = new NotifyIcon
         {
             Text = "Replay Viewer " + AppConfig.Version,
             Icon = LoadIcon(),
             Visible = true,
-            ContextMenuStrip = menu,
+        };
+        // Show the menu ourselves: NotifyIcon's built-in ContextMenuStrip positions itself
+        // against the full screen rather than the working area, so it can land behind the taskbar.
+        _icon.MouseUp += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                _menu.Show(Cursor.Position);
+            }
         };
         _icon.DoubleClick += (_, _) => SingleInstance.OpenBrowser();
+
+        // The first check waits for the message loop so its continuation lands on the UI thread.
+        _timer.Interval = 1000;
+        _timer.Tick += OnFirstTick;
+        _timer.Start();
+
         SingleInstance.OpenBrowser();
     }
 
-    public void NotifyUpdate(Action apply)
+    private async void OnFirstTick(object? sender, EventArgs e)
     {
-        void Show()
+        _timer.Stop();
+        _timer.Tick -= OnFirstTick;
+        _timer.Tick += async (_, _) => await CheckAsync(manual: false);
+        _timer.Interval = (int)CheckInterval.TotalMilliseconds;
+        _timer.Start();
+        await CheckAsync(manual: false);
+    }
+
+    private async Task OnUpdateClickedAsync()
+    {
+        if (_available is null)
         {
-            _applyUpdate = apply;
+            await CheckAsync(manual: true);
+            return;
+        }
+
+        await ApplyAsync(_available);
+    }
+
+    private async Task CheckAsync(bool manual)
+    {
+        if (_checking)
+        {
+            return;
+        }
+
+        _checking = true;
+        _updateItem.Enabled = false;
+        _updateItem.Text = "Checking for updates…";
+        try
+        {
+            _available = await UpdateChecker.CheckAsync(CancellationToken.None);
+            if (_available is null)
+            {
+                FileLog.Info("update check: up to date");
+                _updateItem.Text = $"Up to date ({AppConfig.Version})";
+            }
+            else
+            {
+                FileLog.Info($"update check: {_available.Version} available");
+                _updateItem.Text = $"Update to {_available.Version}";
+                _icon.ShowBalloonTip(
+                    4000,
+                    "Replay Viewer",
+                    $"Version {_available.Version} is available. Right-click the tray icon to install it.",
+                    ToolTipIcon.Info
+                );
+            }
+        }
+        catch (Exception ex)
+        {
+            FileLog.Error("update check failed", ex);
+            _updateItem.Text =
+                _available is null ? "Check for updates" : $"Update to {_available.Version}";
+            if (manual)
+            {
+                _icon.ShowBalloonTip(
+                    4000,
+                    "Replay Viewer",
+                    "Could not check for updates. See the log for details.",
+                    ToolTipIcon.Warning
+                );
+            }
+        }
+        finally
+        {
+            _updateItem.Enabled = true;
+            _checking = false;
+        }
+    }
+
+    private async Task ApplyAsync(UpdateChecker.Available update)
+    {
+        _updateItem.Enabled = false;
+        _updateItem.Text = $"Downloading {update.Version}…";
+        try
+        {
+            var exe = await UpdateChecker.PrepareAsync(update, CancellationToken.None);
+            FileLog.Info($"applying update {update.Version} from {exe}");
+            var installed = AppPaths.Default.InstalledExePath;
+            Process.Start(
+                new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments =
+                        "/c timeout /t 3 /nobreak >nul & \""
+                        + exe
+                        + "\" --install & start \"\" \""
+                        + installed
+                        + "\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                }
+            );
+            Application.Exit();
+        }
+        catch (Exception ex)
+        {
+            FileLog.Error("update apply failed", ex);
+            _updateItem.Text = $"Update to {update.Version}";
             _updateItem.Enabled = true;
             _icon.ShowBalloonTip(
                 4000,
                 "Replay Viewer",
-                "An update is available. Use Update on the tray icon.",
-                ToolTipIcon.Info
+                "The update failed. See the log for details.",
+                ToolTipIcon.Error
             );
         }
+    }
 
-        if (_ui is not null)
+    private void ToggleStartup()
+    {
+        try
         {
-            _ui.Post(_ => Show(), null);
-            return;
+            InstallLayout.SetStartup(!InstallLayout.IsStartupRegistered());
+        }
+        catch (Exception ex)
+        {
+            FileLog.Error("startup toggle failed", ex);
         }
 
-        Show();
+        _startupItem.Checked = InstallLayout.IsStartupRegistered();
     }
 
     protected override void ExitThreadCore()
     {
+        _timer.Stop();
+        _timer.Dispose();
+        _menu.Dispose();
         _icon.Visible = false;
         _icon.Dispose();
         _host.Dispose();
@@ -61,20 +199,15 @@ internal sealed class TrayApp : ApplicationContext
 
     private static Icon LoadIcon()
     {
-        var fromExe = Icon.ExtractAssociatedIcon(
-            Environment.ProcessPath ?? Application.ExecutablePath
-        );
-        if (fromExe is not null)
-        {
-            return fromExe;
-        }
-
         var path = Path.Combine(AppContext.BaseDirectory, "app.ico");
         if (File.Exists(path))
         {
-            return new Icon(path);
+            return new Icon(path, SystemInformation.SmallIconSize);
         }
 
-        return SystemIcons.Application;
+        var fromExe = Icon.ExtractAssociatedIcon(
+            Environment.ProcessPath ?? Application.ExecutablePath
+        );
+        return fromExe ?? SystemIcons.Application;
     }
 }

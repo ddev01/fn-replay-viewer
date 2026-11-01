@@ -6,6 +6,10 @@ namespace ReplayViewer;
 
 internal static class InstallLayout
 {
+    private static readonly string[] PreservedDirectoryNames = ["logs", "skins"];
+    private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    private const string RunValueName = "ReplayViewer";
+
     public static string StartMenuShortcutPath =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.StartMenu),
@@ -16,90 +20,32 @@ internal static class InstallLayout
     public static void CopyToInstallDir(string sourceDirectory, AppPaths paths)
     {
         paths.EnsureDirectories();
-        var sourceRoot = Path.GetFullPath(sourceDirectory);
-        var destRoot = Path.GetFullPath(paths.RootDirectory);
-        if (string.Equals(sourceRoot, destRoot, StringComparison.OrdinalIgnoreCase))
-        {
-            CreateStartMenuShortcut(paths.InstalledExePath);
-            return;
-        }
-
-        foreach (
-            var file in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories)
-        )
-        {
-            if (file.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var relative = Path.GetRelativePath(sourceDirectory, file);
-            var dest = Path.Combine(paths.RootDirectory, relative);
-            var destDir = Path.GetDirectoryName(dest);
-            if (!string.IsNullOrEmpty(destDir))
-            {
-                Directory.CreateDirectory(destDir);
-            }
-
-            File.Copy(file, dest, overwrite: true);
-        }
-
-        RemoveStalePayload(sourceRoot, destRoot);
+        InstallPayload.Sync(
+            sourceDirectory,
+            paths.RootDirectory,
+            PreservedDirectoryNames,
+            FileLog.Info
+        );
         CreateStartMenuShortcut(paths.InstalledExePath);
     }
 
-    private static readonly HashSet<string> PreservedDirectoryNames =
-        new(StringComparer.OrdinalIgnoreCase) { "logs", "skins" };
-
-    private static void RemoveStalePayload(string sourceRoot, string destRoot)
+    public static bool IsStartupRegistered()
     {
-        foreach (var file in Directory.EnumerateFiles(destRoot))
-        {
-            var name = Path.GetFileName(file);
-            if (name.StartsWith("unins", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (File.Exists(Path.Combine(sourceRoot, name)))
-            {
-                continue;
-            }
-
-            try
-            {
-                File.Delete(file);
-            }
-            catch (IOException)
-            {
-            }
-        }
-
-        foreach (var dir in Directory.EnumerateDirectories(destRoot))
-        {
-            var name = Path.GetFileName(dir);
-            if (PreservedDirectoryNames.Contains(name))
-            {
-                continue;
-            }
-
-            if (Directory.Exists(Path.Combine(sourceRoot, name)))
-            {
-                continue;
-            }
-
-            try
-            {
-                Directory.Delete(dir, recursive: true);
-            }
-            catch (IOException)
-            {
-            }
-        }
+        using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);
+        return key?.GetValue(RunValueName) is string value && !string.IsNullOrWhiteSpace(value);
     }
 
-    private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string RunValueName = "ReplayViewer";
+    public static void SetStartup(bool enabled)
+    {
+        if (enabled)
+        {
+            RegisterStartup(AppPaths.Default);
+        }
+        else
+        {
+            RemoveStartup();
+        }
+    }
 
     public static void RegisterStartup(AppPaths paths)
     {

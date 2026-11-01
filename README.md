@@ -11,7 +11,7 @@ Releases: https://github.com/ddev01/fn-replay-viewer/releases
 3. If Windows SmartScreen appears, choose **More info** then **Run anyway**. This build is unsigned (a paid code-signing cert is the only way to drop that prompt).
 4. Leave **Launch Replay Viewer** checked on the last page.
 
-That copies the app to `%LocalAppData%\ReplayViewer`, adds a Start Menu shortcut, and starts it when you sign in.
+That copies the app to `%LocalAppData%\ReplayViewer` and adds a Start Menu shortcut. The installer also offers **Start Replay Viewer when I sign in**, which you can change later from the tray icon.
 
 Uninstall from **Settings → Apps** (or Apps & features). App data such as logs and cached skins is left in `%LocalAppData%\ReplayViewer`.
 
@@ -19,7 +19,9 @@ The zip on the release is only for the in-app updater. You do not need to unzip 
 
 ## Use
 
-The page opens on loopback. **Scrape** reads the newest finished replay. **Demos** lists recent files. Right-click the tray icon for Open, Update, and Exit. Updates are checked once at launch against GitHub Releases.
+The page opens on loopback. **Scrape** reads the newest finished replay. **Demos** lists recent files. Right-click the tray icon for **Open**, **Check for updates**, **Start with Windows**, and **Exit**.
+
+Updates are checked at launch and every six hours. When a newer release exists the menu item turns into **Update to x.y.z** and a notification appears; click it to download, verify, and restart into the new version. Nothing is installed without that click.
 
 ## Build
 
@@ -34,6 +36,6 @@ That writes:
 - `artifacts/installer/ReplayViewer-Setup-<version>.exe`
 - `artifacts/ReplayViewer-win-x64-<version>.zip`
 
-Push a matching git tag (for example `v1.0.5`) to have GitHub Actions attach both files to the release.
+Push a matching git tag (for example `v1.0.6`) to have GitHub Actions attach both files to the release.
 
 NameFN lookup uses `https://named.peltux.xyz` by default (same as 1.0.2). Override it by copying `Directory.Build.local.props.example` to `Directory.Build.local.props` and setting `NameFnPublicUrl`, or by setting the `NAME_FN_PUBLIC_URL` repository secret for CI. An empty override hides the NameFN button.

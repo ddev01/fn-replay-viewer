@@ -51,6 +51,35 @@ internal static class LogonTask
         }
     }
 
+    public static bool Exists()
+    {
+        var type = Type.GetTypeFromProgID("Schedule.Service");
+        if (type is null)
+        {
+            return false;
+        }
+
+        dynamic service = Activator.CreateInstance(type)!;
+        try
+        {
+            service.Connect();
+            dynamic folder = service.GetFolder("\\");
+            try
+            {
+                folder.GetTask(TaskName);
+                return true;
+            }
+            catch (COMException)
+            {
+                return false;
+            }
+        }
+        finally
+        {
+            Marshal.FinalReleaseComObject(service);
+        }
+    }
+
     public static void Remove()
     {
         var type = Type.GetTypeFromProgID("Schedule.Service");

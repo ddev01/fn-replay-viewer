@@ -7,4 +7,4 @@ Directory.Build.local.props
 artifacts/
 *.zip
 logs/
-tools/
+tools/innosetup/

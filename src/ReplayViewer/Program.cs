@@ -14,7 +14,13 @@ internal static class Program
             var source =
                 Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
             InstallLayout.CopyToInstallDir(source, paths);
-            InstallLayout.RegisterStartup(paths);
+            // Startup is owned by the installer's autostart task and the tray toggle, so an
+            // update never re-enables it. A legacy logon task is migrated, not dropped.
+            if (LogonTask.Exists())
+            {
+                InstallLayout.RegisterStartup(paths);
+            }
+
             FileLog.Info($"installed to {paths.InstalledExePath}");
             return 0;
         }
@@ -57,7 +63,6 @@ internal static class Program
         }
 
         var tray = new TrayApp(host);
-        _ = UpdateChecker.RunAsync(tray, CancellationToken.None);
         Application.Run(tray);
         return 0;
     }
