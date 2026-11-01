@@ -1,3 +1,8 @@
+// @ts-check
+/** @typedef {"game" | "you" | "team"} Tab */
+/** @typedef {"placement" | "kills"} SortMode */
+
+/** @type {Record<string, { file: string, themed: boolean, label: string }>} */
 const PLATFORM_ICONS = {
   PC: { file: "epic.svg", themed: false, label: "PC" },
   PlayStation: { file: "playstation.svg", themed: false, label: "PlayStation" },
@@ -7,6 +12,18 @@ const PLATFORM_ICONS = {
   Android: { file: "android.svg", themed: false, label: "Android" },
 };
 
+/**
+ * @type {{
+ *   match: MatchDocument | null,
+ *   tab: Tab,
+ *   focusTeam: number | null,
+ *   focusPlayerId: string | null,
+ *   teamSelected: Set<string>,
+ *   sort: SortMode,
+ *   demosOpen: boolean,
+ *   nameFnPublicUrl: string | null
+ * }}
+ */
 const state = {
   match: null,
   tab: "you",
@@ -18,21 +35,57 @@ const state = {
   nameFnPublicUrl: null,
 };
 
-const $ = (id) => document.getElementById(id);
+/**
+ * @param {string} id
+ * @returns {HTMLElement}
+ */
+const $ = (id) => {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`missing #${id}`);
+  return el;
+};
 
-function idsEqual(a, b) {
-  return a && b && String(a).toLowerCase() === String(b).toLowerCase();
+/**
+ * The ids read through here are the page's checkboxes and search box.
+ * @param {string} id
+ * @returns {HTMLInputElement}
+ */
+const $input = (id) => /** @type {HTMLInputElement} */ ($(id));
+
+/**
+ * @returns {NodeListOf<HTMLButtonElement>}
+ */
+function tabButtons() {
+  return /** @type {NodeListOf<HTMLButtonElement>} */ (document.querySelectorAll(".tabs button"));
 }
 
+/**
+ * @param {string | null | undefined} a
+ * @param {string | null | undefined} b
+ * @returns {boolean}
+ */
+function idsEqual(a, b) {
+  return Boolean(a && b && String(a).toLowerCase() === String(b).toLowerCase());
+}
+
+/**
+ * @param {MatchDocument} match
+ * @returns {string | null}
+ */
 function youId(match) {
   for (const team of match.teams) {
     for (const p of team.players) {
-      if (p.isYou) return p.epicId;
+      if (p.isYou) return p.epicId ?? null;
     }
   }
   return null;
 }
 
+/**
+ * @param {MatchDocument} match
+ * @param {string | null | undefined} id
+ * @returns {{ team: TeamRoster, player: RosterPlayer } | null}
+ */
 function findPlayer(match, id) {
   for (const team of match.teams) {
     for (const p of team.players) {
@@ -42,14 +95,27 @@ function findPlayer(match, id) {
   return null;
 }
 
+/**
+ * @param {MatchDocument} match
+ * @returns {TeamRoster | null}
+ */
 function yourTeam(match) {
   return match.teams.find((t) => t.players.some((p) => p.isYou)) ?? null;
 }
 
+/**
+ * @param {MatchDocument} match
+ * @param {number | null | undefined} index
+ * @returns {TeamRoster | null}
+ */
 function teamByIndex(match, index) {
   return match.teams.find((t) => t.teamIndex === Number(index)) ?? null;
 }
 
+/**
+ * @param {TeamRoster | null | undefined} team
+ * @param {string | null} [playerId]
+ */
 function selectSquad(team, playerId) {
   if (!team) return;
   state.focusTeam = team.teamIndex;
@@ -59,6 +125,10 @@ function selectSquad(team, playerId) {
   );
 }
 
+/**
+ * @param {TeamRoster | null | undefined} team
+ * @param {string | null | undefined} playerId
+ */
 function selectOnlyPlayer(team, playerId) {
   if (!team || !playerId) return;
   state.focusTeam = team.teamIndex;
@@ -68,7 +138,7 @@ function selectOnlyPlayer(team, playerId) {
 
 function openTeamTimeline() {
   state.tab = "team";
-  document.querySelectorAll(".tabs button").forEach((b) => {
+  tabButtons().forEach((b) => {
     b.classList.toggle("active", b.dataset.tab === "team");
   });
   render();
@@ -80,15 +150,19 @@ function openTeamTimeline() {
   });
 }
 
-function isHuman(match, id) {
-  const found = findPlayer(match, id);
-  return Boolean(found && !found.player.isBot);
-}
-
+/**
+ * @param {TeamRoster} team
+ * @returns {number}
+ */
 function teamKills(team) {
   return (team.players || []).reduce((sum, p) => sum + (p.kills || 0), 0);
 }
 
+/**
+ * @param {TeamRoster[]} teams
+ * @param {SortMode} mode
+ * @returns {TeamRoster[]}
+ */
 function sortTeams(teams, mode) {
   const copy = teams.slice();
   if (mode === "kills") {
@@ -106,43 +180,47 @@ function sortTeams(teams, mode) {
   return copy;
 }
 
+/**
+ * @param {MatchDocument} match
+ * @returns {MatchEvent[]}
+ */
 function youEvents(match) {
   const you = youId(match);
   return match.events.filter((e) => idsEqual(e.actorId, you) || idsEqual(e.targetId, you));
 }
 
+/**
+ * @param {MatchDocument} match
+ * @returns {MatchEvent | undefined}
+ */
 function latestYouDeath(match) {
   const you = youId(match);
   return youEvents(match)
-    .filter(
-      (e) =>
-        (e.kind === "finish" || e.kind === "selfElim") && idsEqual(e.targetId, you)
-    )
+    .filter((e) => (e.kind === "finish" || e.kind === "selfElim") && idsEqual(e.targetId, you))
     .sort((a, b) => b.timeSeconds - a.timeSeconds)[0];
 }
 
+/**
+ * @param {MatchDocument} match
+ * @returns {MatchEvent[]}
+ */
 function filterEvents(match) {
   const you = youId(match);
+  /** @type {MatchEvent[]} */
   let rows;
   if (state.tab === "game") {
     rows = match.events.filter((e) => e.kind === "knock" || e.kind === "finish");
   } else if (state.tab === "you") {
     rows = youEvents(match);
-    const allowKills = $("flt-kills").checked;
-    const allowKnocks = $("flt-knocks").checked;
-    const allowDeaths = $("flt-deaths").checked;
+    const allowKills = $input("flt-kills").checked;
+    const allowKnocks = $input("flt-knocks").checked;
+    const allowDeaths = $input("flt-deaths").checked;
     rows = rows.filter((e) => {
       if (e.kind === "finish" && idsEqual(e.actorId, you)) return allowKills;
-      if (
-        e.kind === "knock" &&
-        (idsEqual(e.actorId, you) || idsEqual(e.targetId, you))
-      ) {
+      if (e.kind === "knock" && (idsEqual(e.actorId, you) || idsEqual(e.targetId, you))) {
         return allowKnocks;
       }
-      if (
-        (e.kind === "finish" || e.kind === "selfElim") &&
-        idsEqual(e.targetId, you)
-      ) {
+      if ((e.kind === "finish" || e.kind === "selfElim") && idsEqual(e.targetId, you)) {
         return allowDeaths;
       }
       return e.kind === "revive";
@@ -153,9 +231,9 @@ function filterEvents(match) {
     }
     const teamIndex = state.focusTeam;
     rows = match.events.filter((e) => e.actorTeam === teamIndex || e.targetTeam === teamIndex);
-    const allowKills = $("team-kills").checked;
-    const allowKnocks = $("team-knocks").checked;
-    const allowDeaths = $("team-deaths").checked;
+    const allowKills = $input("team-kills").checked;
+    const allowKnocks = $input("team-knocks").checked;
+    const allowDeaths = $input("team-deaths").checked;
     rows = rows.filter((e) => {
       if (e.kind === "knock") return allowKnocks;
       if (e.kind === "finish" && e.actorTeam === teamIndex) return allowKills;
@@ -171,15 +249,19 @@ function filterEvents(match) {
     });
   }
 
-  if ($("hide-bots").checked) {
+  if ($input("hide-bots").checked) {
     rows = rows.filter((e) => keepWithHideBots(match, e, you));
   }
-  if ($("only-you").checked) {
+  if ($input("only-you").checked) {
     rows = rows.filter((e) => idsEqual(e.actorId, you) || idsEqual(e.targetId, you));
   }
   return rows.slice().sort((a, b) => a.timeSeconds - b.timeSeconds);
 }
 
+/**
+ * @param {number | null | undefined} seconds
+ * @returns {string}
+ */
 function formatTime(seconds) {
   const s = Math.max(0, Math.floor(seconds || 0));
   const m = Math.floor(s / 60);
@@ -187,12 +269,18 @@ function formatTime(seconds) {
   return `${m}:${r}`;
 }
 
+/**
+ * @param {string} text
+ */
 function showStatus(text) {
   const el = $("status");
   el.hidden = !text;
   el.textContent = text || "";
 }
 
+/**
+ * @param {boolean} open
+ */
 function setDemosOpen(open) {
   state.demosOpen = open;
   $("demos-panel").hidden = !open;
@@ -200,18 +288,32 @@ function setDemosOpen(open) {
   $("toggle-demos").setAttribute("aria-expanded", String(open));
 }
 
+/**
+ * @param {RosterPlayer} player
+ * @returns {string}
+ */
 function anonymousLabel(player) {
   if (!player.anonymous) return "";
   if (player.playerNumber != null) return `anonymous ${player.playerNumber}`;
   return "anonymous";
 }
 
+/**
+ * @param {string} file
+ * @param {string} title
+ * @param {string} [extraClass]
+ * @returns {string}
+ */
 function themedIcon(file, title, extraClass) {
   return `<span class="icon themed ${extraClass || ""}" style="--icon:url('/icons/${file}')" title="${escapeHtml(title)}"></span>`;
 }
 
+/**
+ * @param {string | null | undefined} platform
+ * @returns {string}
+ */
 function platformMarkup(platform) {
-  const spec = PLATFORM_ICONS[platform];
+  const spec = platform ? PLATFORM_ICONS[platform] : undefined;
   if (!spec) return "";
   if (spec.themed) {
     return `<span class="plat">${themedIcon(spec.file, spec.label)}</span>`;
@@ -219,6 +321,11 @@ function platformMarkup(platform) {
   return `<span class="plat"><img class="icon" src="/icons/${spec.file}" alt="${escapeHtml(spec.label)}" title="${escapeHtml(spec.label)}" /></span>`;
 }
 
+/**
+ * @param {EventKind} kind
+ * @param {string} side
+ * @returns {string}
+ */
 function kindMarkup(kind, side) {
   const sideClass = side ? ` ${side}` : "";
   if (kind === "knock") return themedIcon("knock.svg", "Knock", `event knock${sideClass}`);
@@ -228,6 +335,11 @@ function kindMarkup(kind, side) {
   return `<span class="kind">${escapeHtml(kind)}</span>`;
 }
 
+/**
+ * @param {MatchDocument} match
+ * @param {MatchEvent} e
+ * @returns {"taken" | "dealt" | ""}
+ */
 function eventSide(match, e) {
   if (e.kind !== "knock" && e.kind !== "finish" && e.kind !== "selfElim") {
     return "";
@@ -243,10 +355,8 @@ function eventSide(match, e) {
   }
   if (state.tab === "team") {
     const team = Number(state.focusTeam);
-    const actorOn =
-      e.actorTeam === team && state.teamSelected.has(String(e.actorId || "").toLowerCase());
-    const targetOn =
-      e.targetTeam === team && state.teamSelected.has(String(e.targetId || "").toLowerCase());
+    const actorOn = e.actorTeam === team && state.teamSelected.has(String(e.actorId || "").toLowerCase());
+    const targetOn = e.targetTeam === team && state.teamSelected.has(String(e.targetId || "").toLowerCase());
     if (targetOn && !actorOn) return "taken";
     if (actorOn && !targetOn) return "dealt";
     if (targetOn) return "taken";
@@ -254,36 +364,56 @@ function eventSide(match, e) {
   return "";
 }
 
+/**
+ * @returns {string}
+ */
 function arrowMarkup() {
   return themedIcon("arrow.svg", "", "arrow");
 }
 
+/**
+ * @param {string} name
+ * @returns {string}
+ */
 function trackerUrl(name) {
-  return (
-    "https://fortnitetracker.com/profile/search?q=" +
-    encodeURIComponent(name).replaceAll("%20", "+")
-  );
+  return "https://fortnitetracker.com/profile/search?q=" + encodeURIComponent(name).replaceAll("%20", "+");
 }
 
+/**
+ * @param {string | null | undefined} name
+ * @returns {string}
+ */
 function trackerButton(name) {
   if (!name) return "";
-  return `<a class="tracker" href="${escapeHtml(trackerUrl(name))}" target="_blank" rel="noopener noreferrer" title="Fortnite Tracker">${themedIcon("external.svg", "Fortnite Tracker")}</a>`;
+  return `<a class="tracker" aria-label="Fortnite Tracker" href="${escapeHtml(trackerUrl(name))}" target="_blank" rel="noopener noreferrer" title="Fortnite Tracker">${themedIcon("external.svg", "Fortnite Tracker")}</a>`;
 }
 
+/**
+ * @param {string | null | undefined} id
+ * @returns {string | null}
+ */
 function epicUuid(id) {
   const h = String(id).replaceAll("-", "").toLowerCase();
   if (!/^[0-9a-f]{32}$/.test(h)) return null;
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
+/**
+ * @param {string | null | undefined} epicId
+ * @returns {string}
+ */
 function nameFnButton(epicId) {
   if (!state.nameFnPublicUrl || !epicId) return "";
   const q = epicUuid(epicId);
   if (!q) return "";
   const url = state.nameFnPublicUrl + "/search?q=" + encodeURIComponent(q);
-  return `<a class="tracker namefn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" title="NameFN">${themedIcon("external.svg", "NameFN")}</a>`;
+  return `<a class="tracker namefn" aria-label="NameFN" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" title="NameFN">${themedIcon("external.svg", "NameFN")}</a>`;
 }
 
+/**
+ * @param {number | null | undefined} value
+ * @returns {string | null}
+ */
 function formatAccuracy(value) {
   if (value == null || Number.isNaN(Number(value))) return null;
   const n = Number(value);
@@ -291,8 +421,13 @@ function formatAccuracy(value) {
   return `${pct.toFixed(0)}%`;
 }
 
+/**
+ * @param {OwnerStats | null | undefined} stats
+ * @returns {string}
+ */
 function ownerStatChips(stats) {
   if (!stats) return "";
+  /** @type {string[]} */
   const bits = [];
   const acc = formatAccuracy(stats.accuracy);
   if (acc) bits.push(`Acc ${acc}`);
@@ -305,6 +440,10 @@ function ownerStatChips(stats) {
   return bits.map((b) => `<span class="stat">${escapeHtml(b)}</span>`).join("");
 }
 
+/**
+ * @param {number | string | null | undefined} teamIndex
+ * @param {string | null | undefined} playerId
+ */
 function highlightPlayer(teamIndex, playerId) {
   state.focusPlayerId = playerId || null;
   if (teamIndex != null && teamIndex !== "") {
@@ -325,6 +464,10 @@ function highlightPlayer(teamIndex, playerId) {
   }
 }
 
+/**
+ * @param {string} value
+ * @returns {string}
+ */
 function cssEscape(value) {
   if (window.CSS && CSS.escape) return CSS.escape(value);
   return String(value).replace(/"/g, '\\"');
@@ -332,7 +475,7 @@ function cssEscape(value) {
 
 async function loadDemos() {
   const res = await fetch("/api/demos");
-  const demos = await res.json();
+  const demos = /** @type {DemoListItem[]} */ (await res.json());
   const ul = $("demos");
   ul.innerHTML = "";
   for (const demo of demos) {
@@ -347,6 +490,9 @@ async function loadDemos() {
   }
 }
 
+/**
+ * @param {string} path
+ */
 async function scrape(path) {
   showStatus("Scraping…");
   const res = await fetch("/api/scrape", {
@@ -364,10 +510,13 @@ async function scrape(path) {
   state.focusTeam = null;
   state.focusPlayerId = null;
   state.teamSelected = new Set();
-  $("export").disabled = false;
+  /** @type {HTMLButtonElement} */ ($("export")).disabled = false;
   render();
 }
 
+/**
+ * @param {MatchDocument} match
+ */
 function renderTeamPlayerFilters(match) {
   const host = $("team-players");
   host.innerHTML = "";
@@ -411,8 +560,8 @@ function render() {
   $("sort-placement").classList.toggle("active", state.sort === "placement");
   $("sort-kills").classList.toggle("active", state.sort === "kills");
 
-  const q = $("search").value.trim().toLowerCase();
-  const showBots = $("show-bots").checked;
+  const q = $input("search").value.trim().toLowerCase();
+  const showBots = $input("show-bots").checked;
   const roster = $("roster");
   roster.innerHTML = "";
   for (const team of sortTeams(match.teams, state.sort)) {
@@ -432,7 +581,7 @@ function render() {
       <h3 class="squad-head"><span>Squad</span><span class="place">${place}</span></h3>
       <div class="team-meta">${teamKills(team)} elims</div>
     `;
-    card.querySelector(".squad-head").addEventListener("click", () => {
+    card.querySelector(".squad-head")?.addEventListener("click", () => {
       selectSquad(team);
       openTeamTimeline();
     });
@@ -481,15 +630,29 @@ function render() {
   renderTimeline();
 }
 
+/**
+ * @param {string | null | undefined} id
+ * @returns {string}
+ */
 function prettyPlaylist(id) {
   if (!id) return "Unknown playlist";
   return id.replace(/^Playlist_/, "").replaceAll("_", " ");
 }
 
+/**
+ * @param {string | null | undefined} label
+ * @returns {boolean}
+ */
 function isEnvironmentName(label) {
   return label === "Storm" || label === "Fall" || label === "Environment" || label === "Bleed out";
 }
 
+/**
+ * @param {MatchDocument} match
+ * @param {MatchEvent} e
+ * @param {string | null} you
+ * @returns {boolean}
+ */
 function keepWithHideBots(match, e, you) {
   const actorBot = findPlayer(match, e.actorId)?.player?.isBot === true;
   const targetBot = findPlayer(match, e.targetId)?.player?.isBot === true;
@@ -499,6 +662,13 @@ function keepWithHideBots(match, e, you) {
   return !actorBot && !targetBot;
 }
 
+/**
+ * @param {string | null | undefined} label
+ * @param {number | null | undefined} team
+ * @param {string | null | undefined} id
+ * @param {string} role
+ * @returns {string}
+ */
 function nameButton(label, team, id, role) {
   const text = label || "—";
   if (text === "—") return `<span class="name-missing">${escapeHtml(text)}</span>`;
@@ -540,8 +710,9 @@ function renderTimeline() {
         ${isLatestDeath && e.actorTeam != null ? `<button type="button" class="their-team" data-team="${e.actorTeam}" data-id="${escapeHtml(e.actorId || "")}">Their team</button>` : ""}
       </span>
     `;
-    li.querySelectorAll(".name-link, .their-team").forEach((btn) => {
+    /** @type {NodeListOf<HTMLElement>} */ (li.querySelectorAll(".name-link, .their-team")).forEach((btn) => {
       btn.addEventListener("click", () => {
+        /** @type {string | number | undefined} */
         let team = btn.dataset.team;
         const id = btn.dataset.id;
         if (!team && id) {
@@ -560,6 +731,10 @@ function renderTimeline() {
   }
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -572,8 +747,8 @@ $("scrape").addEventListener("click", () => scrape(""));
 $("export").addEventListener("click", () => {
   window.location.href = "/api/match.json";
 });
-$("search").addEventListener("input", render);
-$("show-bots").addEventListener("change", render);
+$input("search").addEventListener("input", render);
+$input("show-bots").addEventListener("change", render);
 $("sort-placement").addEventListener("click", () => {
   state.sort = "placement";
   render();
@@ -585,13 +760,21 @@ $("sort-kills").addEventListener("click", () => {
 $("toggle-demos").addEventListener("click", () => setDemosOpen(!state.demosOpen));
 $("close-demos").addEventListener("click", () => setDemosOpen(false));
 $("demos-backdrop").addEventListener("click", () => setDemosOpen(false));
-["hide-bots", "only-you", "flt-kills", "flt-knocks", "flt-deaths", "team-kills", "team-knocks", "team-deaths"].forEach(
-  (id) => $(id).addEventListener("change", renderTimeline)
-);
-document.querySelectorAll(".tabs button").forEach((btn) => {
+[
+  "hide-bots",
+  "only-you",
+  "flt-kills",
+  "flt-knocks",
+  "flt-deaths",
+  "team-kills",
+  "team-knocks",
+  "team-deaths",
+].forEach((id) => $input(id).addEventListener("change", renderTimeline));
+tabButtons().forEach((btn) => {
   btn.addEventListener("click", () => {
-    state.tab = btn.dataset.tab;
-    document.querySelectorAll(".tabs button").forEach((b) => {
+    const tab = btn.dataset.tab;
+    if (tab === "game" || tab === "you" || tab === "team") state.tab = tab;
+    tabButtons().forEach((b) => {
       b.classList.toggle("active", b === btn);
     });
     render();
@@ -603,14 +786,18 @@ fetch("/api/config")
   .then((cfg) => {
     if (cfg && cfg.nameFnPublicUrl) state.nameFnPublicUrl = String(cfg.nameFnPublicUrl).replace(/\/$/, "");
   })
-  .catch(() => {});
+  .catch(() => {
+    /* config is optional: no NameFN links when the endpoint is down */
+  });
 loadDemos().catch((err) => showStatus(String(err)));
 fetch("/api/match")
   .then((res) => (res.ok ? res.json() : null))
   .then((match) => {
     if (!match) return;
     state.match = match;
-    $("export").disabled = false;
+    /** @type {HTMLButtonElement} */ ($("export")).disabled = false;
     render();
   })
-  .catch(() => {});
+  .catch(() => {
+    /* no match scraped yet: the page starts empty on purpose */
+  });
