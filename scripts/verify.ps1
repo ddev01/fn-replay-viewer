@@ -47,11 +47,11 @@ if ($Coverage) {
     }
     # Gate on the measured baseline (62.3% line / 63.8% branch) minus ~2 points. It is not
     # near 95% because the tray, installer and startup code is deliberately untested.
-    # Note: this setting takes no leading dash, unlike -reports/-targetdir; with one it is
-    # silently ignored and the gate always passes.
+    # Each threshold is its own argument, with no leading dash: "-key" is silently ignored,
+    # and "lineCoverage=60;branchCoverage=60" is read as one int and fails to parse.
     Step "coverage gate" {
         dotnet tool restore
-        dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "minimumCoverageThresholds:lineCoverage=60;branchCoverage=60"
+        dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "minimumCoverageThresholds:lineCoverage=60" "minimumCoverageThresholds:branchCoverage=60"
         Get-Content artifacts/coverage/report/Summary.txt
     }
 }

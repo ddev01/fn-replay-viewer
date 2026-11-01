@@ -41,8 +41,8 @@ jobs:
       - name: Coverage gate
         run: |
           dotnet tool restore
-          # No leading dash on minimumCoverageThresholds: with one it is ignored and the gate always passes.
-          dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "minimumCoverageThresholds:lineCoverage=60;branchCoverage=60"
+          # One argument per threshold, no leading dash, no ';' separator.
+          dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "minimumCoverageThresholds:lineCoverage=60" "minimumCoverageThresholds:branchCoverage=60"
           Get-Content artifacts/coverage/report/Summary.txt | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
 
       - name: Format
