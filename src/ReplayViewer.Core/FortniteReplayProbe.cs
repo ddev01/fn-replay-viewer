@@ -215,7 +215,8 @@ public sealed class FortniteReplayProbe
             var owner = all.FirstOrDefault(p => p.Id == ownerNumeric);
             if (owner is not null)
             {
-                return string.IsNullOrWhiteSpace(owner.EpicId) ? owner.PlayerId : owner.EpicId;
+                var id = string.IsNullOrWhiteSpace(owner.EpicId) ? owner.PlayerId : owner.EpicId;
+                return string.IsNullOrWhiteSpace(id) ? null : id.Trim();
             }
         }
 

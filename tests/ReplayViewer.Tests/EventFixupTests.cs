@@ -80,6 +80,68 @@ public class EventFixupTests
         Assert.Single(EventFixup.Clean([a, b]));
     }
 
+    [Fact]
+    public void Killfeed_rows_without_ids_dedupe_by_name()
+    {
+        var a = Row(10, EventKind.Knock, null, "Bob", null, "John");
+        var b = Row(10.4, EventKind.Knock, null, "bob", null, "john");
+
+        Assert.Single(EventFixup.Clean([a, b]));
+    }
+
+    [Fact]
+    public void Unattributed_finish_without_a_cause_becomes_environment()
+    {
+        var finish = Row(20, EventKind.Finish, null, null, "john", "John");
+
+        var kept = Assert.Single(EventFixup.Clean([finish]));
+
+        Assert.Null(kept.ActorId);
+        Assert.Equal("Environment", kept.ActorName);
+    }
+
+    [Fact]
+    public void Fall_cause_is_labelled_fall()
+    {
+        var finish = Row(20, EventKind.Finish, null, null, "john", "John", cause: "1");
+
+        var kept = Assert.Single(EventFixup.Clean([finish]));
+
+        Assert.Equal("Fall", kept.ActorName);
+    }
+
+    [Fact]
+    public void Rows_that_already_say_storm_are_still_unattributed()
+    {
+        var storm = Row(20, EventKind.Finish, null, "Storm", "john", "John");
+
+        var kept = Assert.Single(EventFixup.Clean([storm]));
+
+        Assert.Null(kept.ActorId);
+        Assert.Equal("Environment", kept.ActorName);
+    }
+
+    [Theory]
+    [InlineData("17", true)]
+    [InlineData("1", true)]
+    [InlineData("50", false)]
+    [InlineData(null, false)]
+    public void Environmental_causes_are_recognised(string? cause, bool expected) =>
+        Assert.Equal(expected, EventFixup.IsEnvironmentalCause(cause));
+
+    [Theory]
+    [InlineData("17", "Storm")]
+    [InlineData("1", "Fall")]
+    [InlineData("50", "Environment")]
+    [InlineData(null, "Environment")]
+    public void Environment_labels_cover_known_causes(string? cause, string expected) =>
+        Assert.Equal(
+            expected,
+            EventFixup.EnvironmentLabel(
+                new EventSnapshot(1, EventKind.Finish, null, null, "john", "John", null, null, cause)
+            )
+        );
+
     private static EventSnapshot Row(
         double time,
         EventKind kind,

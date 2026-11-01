@@ -57,6 +57,17 @@ public class FortniteReplayProbeTests
         }
     }
 
+    [Fact]
+    public void Cancelled_read_stops_before_parsing()
+    {
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+
+        Assert.ThrowsAny<OperationCanceledException>(() =>
+            new FortniteReplayProbe().Read("missing.replay", cancelled.Token)
+        );
+    }
+
     private static string? LatestFinishedReplay()
     {
         var demos = DemosFolder.DefaultPath;

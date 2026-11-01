@@ -179,6 +179,126 @@ public class MatchAssemblerTests
         Assert.Equal(1, match.Events[0].ActorTeam);
     }
 
+    [Fact]
+    public void Anonymous_players_get_placeholder_names()
+    {
+        var match = MatchAssembler.Build(
+            Snapshot(
+                1,
+                Players(
+                    AnonymousPlayer("a", number: 7),
+                    AnonymousPlayer("b", number: null),
+                    NamedPlayer("c")
+                )
+            ),
+            DateTimeOffset.UnixEpoch
+        );
+
+        var names = match.Teams.Single().Players.ToDictionary(p => p.EpicId!);
+        Assert.Equal("Anonymous 7", names["a"].Name);
+        Assert.Equal("Anonymous", names["b"].Name);
+        Assert.Equal("Unknown", names["c"].Name);
+    }
+
+    [Fact]
+    public void Team_placement_falls_back_to_the_best_player_placement()
+    {
+        var match = MatchAssembler.Build(
+            Snapshot(
+                teamSize: 2,
+                Players(
+                    P("a", team: 1, party: "a", placement: 5),
+                    P("b", team: 1, party: "a", placement: 9)
+                )
+            ),
+            DateTimeOffset.UnixEpoch
+        );
+
+        Assert.Equal(5, match.Teams.Single().Placement);
+    }
+
+    [Fact]
+    public void Event_ids_without_a_roster_entry_have_no_team()
+    {
+        var snapshot = new ParsedReplaySnapshot(
+            "x.replay",
+            "Playlist",
+            1,
+            null,
+            null,
+            null,
+            Players(P("a", team: 1, party: "a")),
+            [],
+            [
+                new EventSnapshot(1, EventKind.Knock, "ghost", "Ghost", "a", "A", null, null, null),
+                new EventSnapshot(2, EventKind.Knock, null, null, "a", "A", null, null, null),
+            ]
+        );
+
+        var match = MatchAssembler.Build(snapshot, DateTimeOffset.UnixEpoch);
+
+        Assert.Null(match.Events[0].ActorTeam);
+        Assert.Equal(1, match.Events[0].TargetTeam);
+        Assert.Null(match.Events[1].ActorTeam);
+    }
+
+    [Fact]
+    public void Owner_without_an_epic_id_is_matched_by_instance()
+    {
+        var you = new PlayerSnapshot(null, null, "WIN", true, false, false, true, 1, null, "owner", 0, 7);
+        var mate = new PlayerSnapshot(null, null, "WIN", false, false, false, true, 1, null, "mate", 0, 8);
+
+        var match = MatchAssembler.Build(
+            Snapshot(2, Players(you, mate)),
+            DateTimeOffset.UnixEpoch
+        );
+
+        var owner = Assert.Single(match.Teams.Single().Players, p => p.IsYou);
+        Assert.Equal("Anonymous 7", owner.Name);
+    }
+
+    [Fact]
+    public void Teams_are_ordered_by_team_index()
+    {
+        var match = MatchAssembler.Build(
+            Snapshot(
+                1,
+                Players(P("first", team: 2, party: "a"), P("second", team: 1, party: "b"))
+            ),
+            DateTimeOffset.UnixEpoch
+        );
+
+        Assert.Equal([1, 2], match.Teams.Select(t => t.TeamIndex).ToArray());
+    }
+
+    [Fact]
+    public void Display_names_are_trimmed()
+    {
+        var player = new PlayerSnapshot(
+            "a",
+            "  Spaced Name  ",
+            "WIN",
+            false,
+            false,
+            false,
+            false,
+            1,
+            null,
+            "a",
+            0
+        );
+
+        var match = MatchAssembler.Build(Snapshot(1, Players(player)), DateTimeOffset.UnixEpoch);
+
+        Assert.Equal("Spaced Name", match.Teams.Single().Players.Single().Name);
+    }
+
+    private static PlayerSnapshot AnonymousPlayer(string id, int? number, bool you = false) =>
+        new(id, null, "WIN", you, false, false, true, 1, null, id, 0, number);
+
+    private static PlayerSnapshot NamedPlayer(string id) =>
+        new(id, null, "WIN", false, false, false, false, 1, null, id, 0);
+
     private static ParsedReplaySnapshot Snapshot(
         int? teamSize,
         IReadOnlyList<PlayerSnapshot> players,

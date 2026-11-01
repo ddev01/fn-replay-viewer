@@ -69,6 +69,93 @@ public sealed class InstallPayloadTests : IDisposable
         Assert.True(File.Exists(Path.Combine(Source, "ReplayViewer.exe")));
     }
 
+    [Fact]
+    public void Debug_symbols_are_not_installed()
+    {
+        Write(Path.Combine(Source, "ReplayViewer.exe"), "v2");
+        Write(Path.Combine(Source, "ReplayViewer.pdb"), "symbols");
+
+        InstallPayload.Sync(Source, Destination, Preserved);
+
+        Assert.True(File.Exists(Path.Combine(Destination, "ReplayViewer.exe")));
+        Assert.False(File.Exists(Path.Combine(Destination, "ReplayViewer.pdb")));
+    }
+
+    [Fact]
+    public void Preserved_directories_survive_even_when_the_payload_lacks_them()
+    {
+        Write(Path.Combine(Source, "ReplayViewer.exe"), "v2");
+        Write(Path.Combine(Destination, "logs", "deep", "old.log"), "log");
+
+        InstallPayload.Sync(Source, Destination, Preserved);
+
+        Assert.True(File.Exists(Path.Combine(Destination, "logs", "deep", "old.log")));
+    }
+
+    [Fact]
+    public void Nested_stale_directories_are_removed_recursively()
+    {
+        Write(Path.Combine(Source, "ReplayViewer.exe"), "v2");
+        Write(Path.Combine(Destination, "wwwroot", "app.css"), "stale");
+        Write(Path.Combine(Destination, "wwwroot", "icons", "old.svg"), "stale");
+
+        InstallPayload.Sync(Source, Destination, Preserved);
+
+        Assert.False(Directory.Exists(Path.Combine(Destination, "wwwroot")));
+    }
+
+    [Fact]
+    public void Locked_stale_file_is_kept_and_logged()
+    {
+        Write(Path.Combine(Source, "ReplayViewer.exe"), "v2");
+        var locked = Path.Combine(Destination, "old.dll");
+        Write(locked, "stale");
+        var messages = new List<string>();
+
+        using (new FileStream(locked, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            InstallPayload.Sync(Source, Destination, Preserved, messages.Add);
+        }
+
+        Assert.True(File.Exists(locked));
+        Assert.Contains(messages, m => m.Contains("could not remove stale file", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Copy_waits_for_the_old_version_to_exit()
+    {
+        Write(Path.Combine(Source, "ReplayViewer.exe"), "v2");
+        var destinationFile = Path.Combine(Destination, "ReplayViewer.exe");
+        Write(destinationFile, "v1");
+        var hold = new FileStream(destinationFile, FileMode.Open, FileAccess.Read, FileShare.None);
+        var release = Task.Run(async () =>
+        {
+            await Task.Delay(800);
+            hold.Dispose();
+        });
+
+        try
+        {
+            InstallPayload.Sync(Source, Destination, Preserved);
+        }
+        finally
+        {
+            await release;
+            hold.Dispose();
+        }
+
+        Assert.Equal("v2", Read(destinationFile));
+    }
+
+    [Fact]
+    public void Blank_arguments_are_rejected()
+    {
+        Assert.Throws<ArgumentNullException>(() => InstallPayload.Sync(null!, Destination, Preserved));
+        Assert.Throws<ArgumentException>(() => InstallPayload.Sync("  ", Destination, Preserved));
+        Assert.Throws<ArgumentNullException>(() => InstallPayload.Sync(Source, null!, Preserved));
+        Assert.Throws<ArgumentNullException>(() => InstallPayload.Sync(Source, Destination, null!));
+    }
+
     private static void Write(string path, string content)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
