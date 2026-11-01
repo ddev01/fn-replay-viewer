@@ -147,7 +147,7 @@ internal sealed class TrayApp : ApplicationContext
                 {
                     FileName = "cmd.exe",
                     Arguments =
-                        "/c timeout /t 3 /nobreak >nul & \""
+                        "/c ping -n 4 127.0.0.1 >nul & \""
                         + exe
                         + "\" --install & start \"\" \""
                         + installed

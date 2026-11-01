@@ -69,8 +69,9 @@ internal static class LogonTask
                 folder.GetTask(TaskName);
                 return true;
             }
-            catch (COMException)
+            catch (Exception ex) when (ex is COMException or IOException)
             {
+                // A missing task surfaces as FileNotFoundException through the COM binder.
                 return false;
             }
         }
@@ -97,8 +98,9 @@ internal static class LogonTask
             {
                 folder.DeleteTask(TaskName, 0);
             }
-            catch (COMException)
+            catch (Exception ex) when (ex is COMException or IOException)
             {
+                // Already gone.
             }
         }
         finally
