@@ -121,6 +121,20 @@ public sealed class StaticFilesTests : IAsyncLifetime
         Assert.Equal(LoopbackRoute.UnhandledStatus, (int)response.StatusCode);
     }
 
+    [Fact]
+    public void A_file_under_the_root_is_inside_it()
+    {
+        Assert.True(StaticFiles.IsInsideRoot(_root, Path.Combine(_root, "app.js")));
+    }
+
+    [Fact]
+    public void A_sibling_directory_sharing_the_root_name_is_outside_it()
+    {
+        // Without a trailing separator the prefix check accepts "<root>-evil", a sibling.
+        var sibling = _root + "-evil";
+        Assert.False(StaticFiles.IsInsideRoot(_root, Path.Combine(sibling, "secret.txt")));
+    }
+
     private Task<HttpResponseMessage> Get(string path) =>
         _server.Client.GetAsync(_server.Url(path), TestContext.Current.CancellationToken);
 

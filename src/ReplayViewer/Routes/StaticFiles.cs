@@ -35,8 +35,7 @@ internal sealed class StaticFiles
         }
 
         var path = Path.GetFullPath(Path.Combine(_root, relative));
-        var rootFull = Path.GetFullPath(_root);
-        if (!path.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase) || !File.Exists(path))
+        if (!IsInsideRoot(_root, path) || !File.Exists(path))
         {
             return false;
         }
@@ -47,6 +46,16 @@ internal sealed class StaticFiles
         file.CopyTo(response.OutputStream);
         response.OutputStream.Close();
         return true;
+    }
+
+    /// <summary>
+    /// True when <paramref name="path"/> is inside <paramref name="root"/>. The separator matters:
+    /// without it a sibling directory that merely starts with the same name (wwwroot-evil) would pass.
+    /// </summary>
+    internal static bool IsInsideRoot(string root, string path)
+    {
+        var rootFull = Path.GetFullPath(root) + Path.DirectorySeparatorChar;
+        return path.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ContentType(string path) =>

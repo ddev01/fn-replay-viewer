@@ -137,6 +137,65 @@ public sealed class MatchRoutesTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Get_config_reports_the_name_fn_url()
+    {
+        using var response = await _server.Client.GetAsync(
+            _server.Url("/api/config"),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            "application/json",
+            response.Content.Headers.ContentType?.MediaType
+        );
+
+        // An empty override hides the button, and null properties are not written at all.
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(
+            AppConfig.NameFnPublicUrl is null,
+            !body.Contains("nameFnPublicUrl", StringComparison.Ordinal)
+        );
+    }
+
+    [Fact]
+    public async Task Get_match_json_is_404_before_any_scrape()
+    {
+        ResetLastMatch();
+
+        using var response = await _server.Client.GetAsync(
+            _server.Url("/api/match.json"),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_match_json_downloads_the_last_match()
+    {
+        ResetLastMatch();
+        using var posted = await Post("""{"path":"demo.replay"}""", "application/json");
+        Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+
+        using var response = await _server.Client.GetAsync(
+            _server.Url("/api/match.json"),
+            TestContext.Current.CancellationToken
+        );
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // The attachment header is what makes "Export JSON" download instead of open in a tab.
+        var disposition = response.Content.Headers.ContentDisposition;
+        Assert.NotNull(disposition);
+        Assert.Equal("attachment", disposition.DispositionType);
+        Assert.Contains("match.json", disposition.ToString(), StringComparison.Ordinal);
+        Assert.Contains(
+            "demo.replay",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)
+        );
+    }
+
     private async Task<HttpResponseMessage> Post(string body, string contentType)
     {
         using var content = new StringContent(body, Encoding.UTF8, contentType);

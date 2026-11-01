@@ -10,10 +10,10 @@ internal sealed class ListenerHost : IDisposable
     private readonly CancellationTokenSource _cts = new();
     private Task? _loop;
 
-    public ListenerHost(IReadOnlyList<IHttpRoute> routes)
+    public ListenerHost(IReadOnlyList<IHttpRoute> routes, string? prefix = null)
     {
         _routes = routes;
-        _listener.Prefixes.Add(AppPaths.ListenPrefix);
+        _listener.Prefixes.Add(prefix ?? AppPaths.ListenPrefix);
     }
 
     public void Start()
@@ -28,7 +28,13 @@ internal sealed class ListenerHost : IDisposable
         _cts.Cancel();
         try
         {
-            _listener.Stop();
+            // Stop() throws when the listener never started, and Program.cs disposes after a
+            // failed Start(), so only stop what is actually listening.
+            if (_listener.IsListening)
+            {
+                _listener.Stop();
+            }
+
             _listener.Close();
         }
         catch (ObjectDisposedException)

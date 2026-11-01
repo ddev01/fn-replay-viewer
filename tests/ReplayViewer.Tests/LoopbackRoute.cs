@@ -130,7 +130,7 @@ internal sealed class LoopbackRoute : IAsyncDisposable
         response.OutputStream.Close();
     }
 
-    private static int FreePort()
+    internal static int FreePort()
     {
         using var probe = new TcpListener(IPAddress.Loopback, 0);
         probe.Start();
