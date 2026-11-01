@@ -77,6 +77,12 @@ internal sealed class ListenerHost : IDisposable
     {
         try
         {
+            // The UI needs no inline script/style and no remote resources, so keep it locked down.
+            // Mirrored by tests/ui/serve.mjs, which runs the UI tests under the same policy.
+            context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            context.Response.Headers["Content-Security-Policy"] =
+                "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+
             foreach (var route in _routes)
             {
                 if (route.Matches(context.Request))

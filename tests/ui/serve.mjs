@@ -5,6 +5,14 @@ import { readFile } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Mirrors ListenerHost.ApplySecurityHeaders so the tests run under the same policy the
+// app serves with; otherwise a CSP that breaks the UI would pass unnoticed.
+const securityHeaders = {
+  "x-content-type-options": "nosniff",
+  "content-security-policy":
+    "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+};
+
 const root = resolve(fileURLToPath(new URL("../../src/ReplayViewer/wwwroot/", import.meta.url)));
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -25,9 +33,12 @@ createServer(async (req, res) => {
   }
   try {
     const body = await readFile(file);
-    res.writeHead(200, { "content-type": types[extname(file)] ?? "application/octet-stream" });
+    res.writeHead(200, {
+      "content-type": types[extname(file)] ?? "application/octet-stream",
+      ...securityHeaders,
+    });
     res.end(body);
   } catch {
-    res.writeHead(404).end();
+    res.writeHead(404, securityHeaders).end();
   }
 }).listen(Number(process.env.PORT ?? 4321), "127.0.0.1");
