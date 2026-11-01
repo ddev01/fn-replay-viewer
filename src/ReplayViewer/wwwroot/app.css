@@ -181,7 +181,7 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
 .team-meta { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
 .player {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
   margin: 4px 0;
@@ -317,7 +317,6 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
   button.primary {
     background: linear-gradient(180deg, #4d82d4, #2d62b8);
   }
-  .player img.skin { background: #e6eaf1; }
 }
 .icon {
   display: inline-block;
