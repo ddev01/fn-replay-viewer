@@ -32,6 +32,9 @@ $publishArgs = @(
     "-p:EnableCompressionInSingleFile=true",
     "-p:DebugType=None",
     "-p:DebugSymbols=false",
+    # Publish adds SDK-derived packages the lock file cannot cover; without this the
+    # publish restore rewrites packages.lock.json and breaks the next locked restore.
+    "-p:RestorePackagesWithLockFile=false",
     "-o", $publishDir
 )
 
