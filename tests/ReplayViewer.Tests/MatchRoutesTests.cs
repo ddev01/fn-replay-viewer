@@ -216,6 +216,31 @@ public sealed class MatchRoutesTests : IAsyncLifetime
         Assert.Equal(payload, new string(buffer, 0, total));
     }
 
+    [Fact]
+    public async Task A_scrape_while_another_is_running_is_409()
+    {
+        ResetLastMatch();
+        var release = new TaskCompletionSource();
+        var entered = new TaskCompletionSource();
+        _scraper.OnScrapeAsync = async () =>
+        {
+            entered.TrySetResult();
+            await release.Task;
+            return Match;
+        };
+
+        var first = Post("{}", "application/json");
+        await entered.Task.WaitAsync(TestContext.Current.CancellationToken);
+
+        using var second = await Post("{}", "application/json");
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        Assert.Equal(1, _scraper.Calls);
+
+        release.SetResult();
+        using var firstResponse = await first;
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+    }
+
     private async Task<HttpResponseMessage> Post(string body, string contentType)
     {
         using var content = new StringContent(body, Encoding.UTF8, contentType);
@@ -273,6 +298,9 @@ public sealed class MatchRoutesTests : IAsyncLifetime
     {
         public Func<MatchDocument> OnScrape { get; set; } = () => Match;
 
+        /// <summary>When set, used instead of <see cref="OnScrape"/> so a test can hold a scrape open.</summary>
+        public Func<Task<MatchDocument>>? OnScrapeAsync { get; set; }
+
         public int Calls { get; private set; }
 
         public string? LastPath { get; private set; }
@@ -286,7 +314,9 @@ public sealed class MatchRoutesTests : IAsyncLifetime
         {
             Calls++;
             LastPath = replayPath;
-            return Task.FromResult(OnScrape());
+            return OnScrapeAsync is null
+                ? Task.FromResult(OnScrape())
+                : OnScrapeAsync();
         }
     }
 }
