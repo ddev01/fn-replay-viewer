@@ -37,10 +37,11 @@ jobs:
         with:
           languages: csharp
           build-mode: manual
-          config-file: .github/codeql/codeql-config.yml
 
       - name: Build
-        run: dotnet build ReplayViewer.sln -c Release --nologo
+        # Only the shipped projects: the test project runs its own loopback server, and its
+        # response writes are structurally the sinks cs/web/xss looks for.
+        run: dotnet build src/ReplayViewer/ReplayViewer.csproj -c Release --nologo
 
       - name: Analyze
         uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1

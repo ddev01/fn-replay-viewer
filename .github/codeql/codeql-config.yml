@@ -1,5 +1,0 @@
-# CodeQL only scans what ships. The test project runs a real loopback server whose
-# response writes are structurally identical to the sinks cs/web/xss looks for, so
-# scanning it produces false positives that reappear whenever the file shifts a line.
-paths-ignore:
-  - "**/tests/**"
