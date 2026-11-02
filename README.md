@@ -4,6 +4,8 @@ Local Windows tray app that reads Fortnite demo files from your Demos folder and
 
 Releases: https://github.com/ddev01/fn-replay-viewer/releases
 
+How it works, in detail: [docs/architecture.md](docs/architecture.md)
+
 ## Install
 
 1. Download **ReplayViewer-Setup-*.exe** from [Releases](https://github.com/ddev01/fn-replay-viewer/releases).
