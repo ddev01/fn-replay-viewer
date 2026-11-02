@@ -143,6 +143,8 @@ Everything is on `http://127.0.0.1:47231/`, loopback only, no authentication (se
 | POST | `/api/scrape` | Body `{ "path": "..." }` (or `{}` for the newest). Returns the match. |
 | GET | `/api/match` | The last match served by this process, or 404 |
 | GET | `/api/match.json` | Same, as a download (`Content-Disposition: attachment`) |
+| GET | `/api/update` | `{ available, staged, stagedVersion }` — drives the update banner |
+| POST | `/api/update/apply` | Installs a staged update and restarts |
 
 Status codes the UI relies on:
 
@@ -201,21 +203,26 @@ The cache is disposable: the installer prunes it on update, and a cold start sim
 ## 7. Updater
 
 1. **Check** at launch and every 6 hours: `GET api.github.com/repos/ddev01/fn-replay-viewer/releases/latest`.
-2. If the tag is newer than the running assembly version, the tray item becomes
-   **Update to x.y.z** and a balloon tip appears.
-3. **Install only on click.** Download the `.zip` asset, verify it against the release asset's
-   `digest` (SHA-256), extract to `%TEMP%\ReplayViewerUpdate\<guid>`, then run
-   `ReplayViewer.exe --install` from the extracted payload and `start` the installed exe.
+2. If the tag is newer than the running assembly version, the tray item becomes **Update to x.y.z**
+   and a balloon tip appears.
+3. **Stage, silently.** The `.zip` asset and its detached `.sig` are downloaded, the signature is
+   verified against a key embedded in the app, the GitHub digest is checked too, and the payload is
+   extracted to `%TEMP%\ReplayViewerPending`. Nothing is installed and nothing restarts.
+4. **Apply on the next launch.** `Program.Main` sees the staged payload, runs
+   `ReplayViewer.exe --install` from it, and the installer relaunches the new version. Updating
+   therefore never interrupts a session.
+5. **Apply now** from the web banner (`POST /api/update/apply`) or the tray menu, which runs the
+   same chain immediately.
 
-`--install` syncs the payload over `%LocalAppData%\ReplayViewer`, removes files the payload no
-longer has, preserves `logs/`, and creates the Start Menu shortcut. It returns non-zero on
-failure, and the update chain uses `&&`, so a failed copy never relaunches the old build as if the
-update worked.
+### Signature
 
-**Nothing installs without the click.** That is deliberate: the binary is unsigned, and releases
-are immutable, so a bad release cannot be pulled back.
+The release key is ECDSA P-256 and never leaves the maintainer's machine
+(`~/.config/replay-viewer/release-key.pem`). `scripts/sign-release.sh` signs each artifact and
+publishes the release; the public half is a constant in `ReleaseSignature.cs`.
 
----
+A missing signature **fails closed**: an update without one is refused. That is the point — the
+GitHub digest only proves the file matches what GitHub stores, so a compromised account could
+publish a matching pair. The signature proves the maintainer produced it.
 
 ## 8. Install and uninstall
 
@@ -257,12 +264,16 @@ far better than a pre-compressed one.
 |---|---|---|
 | `ci.yml` | every push, PRs to `develop` | locked restore → build `-warnaserror` → test → coverage gate → format → lint → typecheck → UI tests |
 | `codeql.yml` | push/PR to `develop`, weekly | CodeQL C# on Windows, scoped to the shipped projects |
-| `release.yml` | `v*` tag | test → install Inno (pinned) → pack → attest build provenance → publish the release |
+| `release.yml` | `v*` tag | test → install Inno (pinned) → pack → attest build provenance → upload the artifacts to the run |
 
 All actions are pinned to commit SHAs and updated by Dependabot. Releases are **immutable** and
 carry a Sigstore attestation (`gh attestation verify ReplayViewer-Setup-x.y.z.exe --repo …`).
 
-The release job refuses to publish when the tag does not match `Version` in `Directory.Build.props`.
+The release job refuses to build when the tag does not match `Version` in `Directory.Build.props`.
+
+**Publishing is a separate, manual step**: `scripts/sign-release.sh v1.2.3` downloads the run's
+artifacts, signs them with the offline key, verifies the signatures, and creates the immutable
+release with all four files. CI cannot publish a release on its own, by design — it has no key.
 
 ---
 
@@ -275,8 +286,8 @@ The release job refuses to publish when the tag does not match `Version` in `Dir
 - Request bodies are capped at 64 KB and must declare `application/json`.
 - No authentication on the loopback API: any local process can read the current match. Accepted for
   a single-user desktop app; documented in `SECURITY.md`.
-- The updater verifies SHA-256 against GitHub's release digest. If GitHub omits the digest,
-  verification is skipped (fail-open) — documented, and unlikely now that releases are immutable.
+- The updater requires a detached ECDSA signature from the offline release key and fails closed
+  without one; the GitHub digest is checked as well.
 
 ---
 

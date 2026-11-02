@@ -50,6 +50,20 @@ internal static class Program
             return 0;
         }
 
+        // A verified update staged by a previous run is applied here, before the UI starts, so
+        // updating never interrupts a session. The payload's --install relaunches the app.
+        var installed = AppPaths.Default.InstalledExePath;
+        if (
+            string.Equals(Environment.ProcessPath, installed, StringComparison.OrdinalIgnoreCase)
+            && UpdateChecker.TryGetPending(out var pendingVersion, out var pendingExe)
+        )
+        {
+            UpdateChecker.MarkApplied();
+            UpdateInstaller.Apply(pendingExe, installed);
+            FileLog.Info($"applying staged update {pendingVersion}");
+            return 0;
+        }
+
         AppPaths.Default.EnsureDirectories();
         ApplicationConfiguration.Initialize();
         var scraper = new MatchScraper();

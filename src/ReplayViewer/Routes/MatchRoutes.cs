@@ -45,6 +45,54 @@ internal sealed class MatchRoutes : IHttpRoute
                 return;
             }
 
+            if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase) && path == "/api/update")
+            {
+                var staged = UpdateChecker.TryGetPending(out var stagedVersion, out _);
+                await HttpJson
+                    .WriteJsonAsync(
+                        response,
+                        new
+                        {
+                            available = UpdateChecker.AvailableVersion,
+                            staged,
+                            stagedVersion = staged ? stagedVersion : null,
+                        }
+                    )
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            if (
+                string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase)
+                && path == "/api/update/apply"
+            )
+            {
+                if (!UpdateChecker.TryGetPending(out var pendingVersion, out var pendingExe))
+                {
+                    await HttpJson
+                        .WriteErrorAsync(response, 409, "No update is ready.")
+                        .ConfigureAwait(false);
+                    return;
+                }
+
+                UpdateChecker.MarkApplied();
+                UpdateInstaller.Apply(pendingExe, AppPaths.Default.InstalledExePath);
+                await HttpJson
+                    .WriteJsonAsync(response, new { applying = pendingVersion })
+                    .ConfigureAwait(false);
+                // Let the response reach the browser before the process goes away; the
+                // installer chain relaunches the new version.
+                _ = Task.Run(
+                    async () =>
+                    {
+                        await Task.Delay(800).ConfigureAwait(false);
+                        Environment.Exit(0);
+                    },
+                    CancellationToken.None
+                );
+                return;
+            }
+
             if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase) && path == "/api/demos")
             {
                 await HttpJson.WriteJsonAsync(response, _scraper.ListRecent()).ConfigureAwait(false);

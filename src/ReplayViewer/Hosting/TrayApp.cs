@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using ReplayViewer.Core;
 
@@ -106,18 +105,25 @@ internal sealed class TrayApp : ApplicationContext
             if (_available is null)
             {
                 FileLog.Info("update check: up to date");
+                UpdateChecker.AvailableVersion = null;
                 _updateItem.Text = $"Up to date ({AppConfig.Version})";
             }
             else
             {
                 FileLog.Info($"update check: {_available.Version} available");
+                UpdateChecker.AvailableVersion = _available.Version;
                 _updateItem.Text = $"Update to {_available.Version}";
                 _icon.ShowBalloonTip(
                     4000,
                     "Replay Viewer",
-                    $"Version {_available.Version} is available. Right-click the tray icon to install it.",
+                    $"Version {_available.Version} is available. It installs the next time Replay Viewer starts.",
                     ToolTipIcon.Info
                 );
+                // Silent: fetch and verify it now so the next launch can apply it immediately.
+                if (!UpdateChecker.TryGetPending(out _, out _))
+                {
+                    _ = StageAsync(_available);
+                }
             }
         }
         catch (Exception ex)
@@ -142,29 +148,31 @@ internal sealed class TrayApp : ApplicationContext
         }
     }
 
+    /// <summary>Downloads and verifies an update without touching the running install.</summary>
+    private static async Task StageAsync(UpdateChecker.Available update)
+    {
+        try
+        {
+            await UpdateChecker.StageAsync(update, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            FileLog.Error("update staging failed", ex);
+        }
+    }
+
     private async Task ApplyAsync(UpdateChecker.Available update)
     {
         _updateItem.Enabled = false;
-        _updateItem.Text = $"Downloading {update.Version}…";
+        _updateItem.Text = $"Updating to {update.Version}…";
         try
         {
-            var exe = await UpdateChecker.PrepareAsync(update, CancellationToken.None);
-            FileLog.Info($"applying update {update.Version} from {exe}");
-            var installed = AppPaths.Default.InstalledExePath;
-            Process.Start(
-                new ProcessStartInfo
-                {
-                    FileName = "cmd.exe",
-                    Arguments =
-                        "/c ping -n 4 127.0.0.1 >nul & \""
-                        + exe
-                        + "\" --install && start \"\" \""
-                        + installed
-                        + "\"",
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                }
-            );
+            // Reuse a payload that was already staged silently; otherwise fetch it now.
+            var exe = UpdateChecker.TryGetPending(out _, out var pending)
+                ? pending
+                : await UpdateChecker.StageAsync(update, CancellationToken.None);
+            UpdateChecker.MarkApplied();
+            UpdateInstaller.Apply(exe, AppPaths.Default.InstalledExePath);
             Application.Exit();
         }
         catch (Exception ex)

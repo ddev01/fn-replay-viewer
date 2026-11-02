@@ -106,6 +106,25 @@ button:disabled { opacity: 0.45; cursor: default; }
 }
 .demos-panel li:hover { background: var(--panel-2); color: var(--text); }
 main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 22%, var(--panel)),
+    var(--panel)
+  );
+}
+.update-banner strong { display: block; font-size: 0.98rem; }
+.update-banner span { color: var(--muted); font-size: 0.85rem; }
+.update-banner button { flex: 0 0 auto; }
+
 .summary { margin-bottom: 10px; }
 .match-chips {
   display: flex;

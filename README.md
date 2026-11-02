@@ -23,7 +23,7 @@ The zip on the release is only for the in-app updater. You do not need to unzip 
 
 The page opens on loopback and shows your most recent finished replay by itself; reloading keeps you on the same one. The **☰** button beside the search box lists recent replays — picking one opens it, and a replay that has been opened before comes back instantly. Right-click the tray icon for **Open**, **Check for updates**, **Start with Windows**, and **Exit**.
 
-Updates are checked at launch and every six hours. When a newer release exists the menu item turns into **Update to x.y.z** and a notification appears; click it to download, verify, and restart into the new version. Nothing is installed without that click.
+Updates are checked at launch and every six hours. A newer release is downloaded and verified in the background, and installs itself the next time Replay Viewer starts. The page shows a banner with an **Update now** button if you would rather restart straight away, and the tray menu offers the same thing. Nothing installs unless the download passes its detached signature check.
 
 ## Build
 

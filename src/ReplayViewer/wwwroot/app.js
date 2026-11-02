@@ -761,6 +761,29 @@ function renderTimeline() {
  * @param {unknown} value
  * @returns {string}
  */
+/**
+ * Shows the update banner when the app has an update waiting. Silent updates apply on the next
+ * launch, so this is the way to take one immediately.
+ */
+async function loadUpdateBanner() {
+  try {
+    const res = await fetch("/api/update");
+    if (!res.ok) return;
+    const info = await res.json();
+    if (!info.staged && !info.available) return;
+    const version = info.stagedVersion || info.available || "";
+    $("update-title").textContent = info.staged
+      ? `Version ${version} is ready to install`
+      : `Version ${version} is available`;
+    $("update-detail").textContent = info.staged
+      ? "It installs by itself the next time Replay Viewer starts."
+      : "Downloading in the background.";
+    $("update-banner").hidden = false;
+  } catch {
+    /* the banner is optional: the tray still handles updates */
+  }
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -769,6 +792,22 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
+$("update-apply").addEventListener("click", async () => {
+  const button = /** @type {HTMLButtonElement} */ ($("update-apply"));
+  button.disabled = true;
+  try {
+    const res = await fetch("/api/update/apply", { method: "POST" });
+    if (!res.ok) {
+      $("update-detail").textContent = "No update is ready yet.";
+      button.disabled = false;
+      return;
+    }
+    $("update-detail").textContent = "Restarting Replay Viewer…";
+  } catch {
+    $("update-detail").textContent = "Could not reach Replay Viewer.";
+    button.disabled = false;
+  }
+});
 $input("search").addEventListener("input", render);
 $input("show-bots").addEventListener("change", render);
 $("sort-placement").addEventListener("click", () => {
@@ -812,6 +851,7 @@ fetch("/api/config")
     /* config is optional: no NameFN links when the endpoint is down */
   });
 loadDemos().catch((err) => showStatus(String(err)));
+loadUpdateBanner();
 // Show what the server already has, so reloading stays on the same replay. Only when nothing
 // is cached yet does the page pick the newest finished replay by itself.
 fetch("/api/match")
