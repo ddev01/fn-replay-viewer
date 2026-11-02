@@ -9,7 +9,7 @@ public sealed class LiveReplayException : InvalidOperationException
 public sealed class ReplayStillWritingException : InvalidOperationException
 {
     public ReplayStillWritingException()
-        : base("Newest replay is still being written.") { }
+        : base("The newest replay is still being written.") { }
 }
 
 public sealed class UnreadableReplayException : InvalidOperationException

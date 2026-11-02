@@ -7,59 +7,38 @@ public class FortniteReplayProbeTests
     [Fact]
     public async Task Parses_a_local_demo_when_present()
     {
-        var file = LatestFinishedReplay();
-        Assert.SkipWhen(file is null, "No finished replay in the Demos folder.");
-        var copy = ReplayFileAccess.CopyWithReadWriteShare(file!);
-        try
-        {
-            var probe = new FortniteReplayProbe();
-            var snapshot = await probe.ReadAsync(copy, TestContext.Current.CancellationToken);
-            Assert.NotEmpty(snapshot.Players);
-        }
-        finally
-        {
-            File.Delete(copy);
-        }
+        var snapshot = await ReadNewestFinishedAsync();
+        Assert.SkipWhen(snapshot is null, "No finished replay in the Demos folder.");
+        Assert.NotEmpty(snapshot!.Players);
     }
 
     [Fact]
     public async Task Owner_timeline_does_not_repeat_the_same_elim()
     {
-        var file = LatestFinishedReplay();
-        Assert.SkipWhen(file is null, "No finished replay in the Demos folder.");
-        var copy = ReplayFileAccess.CopyWithReadWriteShare(file!);
-        try
-        {
-            var snapshot = await new FortniteReplayProbe().ReadAsync(
-                copy,
-                TestContext.Current.CancellationToken
-            );
-            var you = snapshot.Players.First(p => p.IsReplayOwner);
-            var rows = snapshot
-                .Events.Where(e =>
-                    string.Equals(e.ActorId, you.EpicId, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(e.TargetId, you.EpicId, StringComparison.OrdinalIgnoreCase)
-                )
-                .OrderBy(e => e.TimeSeconds)
-                .ToArray();
+        var snapshot = await ReadNewestFinishedAsync();
+        Assert.SkipWhen(snapshot is null, "No finished replay in the Demos folder.");
 
-            var repeats = rows.GroupBy(e =>
-                    (
-                        e.Kind,
-                        Actor: e.ActorId ?? e.ActorName,
-                        Target: e.TargetId ?? e.TargetName,
-                        Bucket: Math.Floor(e.TimeSeconds)
-                    )
+        var you = snapshot!.Players.First(p => p.IsReplayOwner);
+        var rows = snapshot
+            .Events.Where(e =>
+                string.Equals(e.ActorId, you.EpicId, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(e.TargetId, you.EpicId, StringComparison.OrdinalIgnoreCase)
+            )
+            .OrderBy(e => e.TimeSeconds)
+            .ToArray();
+
+        var repeats = rows.GroupBy(e =>
+                (
+                    e.Kind,
+                    Actor: e.ActorId ?? e.ActorName,
+                    Target: e.TargetId ?? e.TargetName,
+                    Bucket: Math.Floor(e.TimeSeconds)
                 )
-                .Where(g => g.Count() > 1)
-                .Select(g => g.Key)
-                .ToArray();
-            Assert.Empty(repeats);
-        }
-        finally
-        {
-            File.Delete(copy);
-        }
+            )
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToArray();
+        Assert.Empty(repeats);
     }
 
     [Fact]
@@ -75,7 +54,11 @@ public class FortniteReplayProbeTests
 #pragma warning restore xUnit1051
     }
 
-    private static string? LatestFinishedReplay()
+    /// <summary>
+    /// Newest replay that actually parses. While Fortnite is recording, the newest file is
+    /// half written and is rejected, so this walks down the list rather than taking the top.
+    /// </summary>
+    private static async Task<ParsedReplaySnapshot?> ReadNewestFinishedAsync()
     {
         var demos = DemosFolder.DefaultPath;
         if (!Directory.Exists(demos))
@@ -91,9 +74,27 @@ public class FortniteReplayProbeTests
                 .OrderByDescending(i => i.LastWriteTimeUtc)
         )
         {
-            if (ReplayHeader.TryInspect(info.FullName, out var header) && !header.IsLive)
+            var copy = ReplayFileAccess.CopyWithReadWriteShare(info.FullName);
+            try
             {
-                return info.FullName;
+                var snapshot = await new FortniteReplayProbe().ReadAsync(
+                    copy,
+                    TestContext.Current.CancellationToken
+                );
+                // Some finished replays never record an owner, and the Owner_timeline test
+                // needs one, so keep looking rather than taking the newest blindly.
+                if (snapshot.Players.Any(p => p.IsReplayOwner))
+                {
+                    return snapshot;
+                }
+            }
+            catch (Exception ex) when (ex is ReplayStillWritingException or UnreadableReplayException)
+            {
+                // Truncated or unreadable; try the next one down.
+            }
+            finally
+            {
+                File.Delete(copy);
             }
         }
 

@@ -19,7 +19,7 @@ The zip on the release is only for the in-app updater. You do not need to unzip 
 
 ## Use
 
-The page opens on loopback. **Scrape** reads the newest finished replay. **Demos** lists recent files. Right-click the tray icon for **Open**, **Check for updates**, **Start with Windows**, and **Exit**.
+The page opens on loopback and shows your most recent finished replay by itself; reloading keeps you on the same one. The **☰** button beside the search box lists recent replays — picking one opens it, and a replay that has been opened before comes back instantly. Right-click the tray icon for **Open**, **Check for updates**, **Start with Windows**, and **Exit**.
 
 Updates are checked at launch and every six hours. When a newer release exists the menu item turns into **Update to x.y.z** and a notification appears; click it to download, verify, and restart into the new version. Nothing is installed without that click.
 

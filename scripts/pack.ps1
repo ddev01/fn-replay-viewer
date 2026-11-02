@@ -29,7 +29,11 @@ $publishArgs = @(
     "--self-contained", "true",
     "-p:PublishSingleFile=true",
     "-p:IncludeNativeLibrariesForSelfExtract=true",
-    "-p:EnableCompressionInSingleFile=true",
+    # Compression halves the exe but the runtime decompresses the assemblies into memory at
+    # startup: measured 152 MB working set with it on vs 92 MB off, and 538 ms to start vs
+    # 546-644. The zip only grows 44.3 -> 45.4 MB because a compressed exe does not compress
+    # again inside it, so the download is nearly free.
+    "-p:EnableCompressionInSingleFile=false",
     "-p:DebugType=None",
     "-p:DebugSymbols=false",
     "-o", $publishDir
