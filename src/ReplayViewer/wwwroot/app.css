@@ -209,6 +209,8 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
   height: 24px;
   max-width: 24px;
   max-height: 24px;
+  /* .icon sets flex-basis, and this is a flex item of .tracker, so width alone is ignored. */
+  flex: 0 0 24px;
   -webkit-mask-size: 24px 24px;
   mask-size: 24px 24px;
 }

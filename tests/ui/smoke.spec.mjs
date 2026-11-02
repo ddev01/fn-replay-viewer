@@ -49,6 +49,25 @@ test("themed icons are masked, not painted as solid blocks", async ({ page }) =>
   expect(masks.length).toBeGreaterThan(0);
   expect(masks.filter((mask) => mask === "none")).toEqual([]);
 
+  // The platform, tracker and NameFN icons are 24px. flex-basis wins over width in the
+  // tracker, so asserting the computed width is what catches a regression here.
+  const sizes = await page.evaluate(() => {
+    const width = (selector) => {
+      const node = document.querySelector(selector);
+      return node ? node.ownerDocument.defaultView.getComputedStyle(node).width : "missing";
+    };
+    return {
+      platform: width(".plat"),
+      tracker: width(".tracker .icon"),
+      nameFn: width(".tracker.namefn .icon"),
+    };
+  });
+  expect(sizes).toEqual({ platform: "24px", tracker: "24px", nameFn: "24px" });
+
+  // Both links belong beside the platform icon, not on the name line.
+  expect(await page.locator(".pname-row .tracker").count()).toBe(0);
+  expect(await page.locator(".badges .tracker").count()).toBeGreaterThan(0);
+
   expect(violations).toEqual([]);
 });
 
