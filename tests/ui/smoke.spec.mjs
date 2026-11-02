@@ -197,9 +197,7 @@ test("a replay without an owner explains the empty You timeline", async ({ page 
   await page.goto("/");
 
   await expect(page.locator("#roster .team")).toHaveCount(2);
-  await expect(page.locator("#timeline")).toContainText(
-    "doesn't record which player you were"
-  );
+  await expect(page.locator("#timeline")).toContainText("doesn't record which player you were");
 });
 
 test("has no serious or critical accessibility violations", async ({ page }) => {
