@@ -94,8 +94,8 @@ test("renders the summary, team cards and roster players", async ({ page }) => {
 });
 
 test("opens the newest replay when nothing is cached", async ({ page }) => {
-  let posts = 0;
   await page.route("**/api/match", (route) => route.fulfill({ status: 404, body: "" }));
+  let posts = 0;
   await page.route("**/api/scrape", (route) => {
     posts += 1;
     return route.fulfill({
@@ -105,7 +105,9 @@ test("opens the newest replay when nothing is cached", async ({ page }) => {
     });
   });
 
-  await page.reload();
+  // Drop the page the shared beforeEach loaded, so its in-flight init cannot scrape too.
+  await page.goto("about:blank");
+  await page.goto("/");
 
   await expect(page.locator("#roster .team")).toHaveCount(2);
   expect(posts).toBe(1);
