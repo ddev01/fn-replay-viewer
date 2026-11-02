@@ -46,21 +46,31 @@ public sealed class FortniteReplayProbe
     private static ParsedReplaySnapshot Parse(string path)
     {
         FortniteReplay? chosen = null;
+        Exception? failure = null;
         foreach (var mode in Modes)
         {
-            var replay = new ReplayReader(parseMode: mode).ReadReplay(path);
-            if (HasPlayersAndEvents(replay))
+            try
             {
-                chosen = replay;
-                break;
-            }
+                var replay = new ReplayReader(parseMode: mode).ReadReplay(path);
+                if (HasPlayersAndEvents(replay))
+                {
+                    chosen = replay;
+                    break;
+                }
 
-            chosen ??= replay;
+                chosen ??= replay;
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                // A replay that is still recording ends mid-structure and throws; try the next
+                // mode rather than failing the whole scrape.
+                failure = ex;
+            }
         }
 
         if (chosen is null)
         {
-            throw new InvalidOperationException("Replay parse returned no data.");
+            throw new UnreadableReplayException(failure);
         }
 
         return Map(chosen, Path.GetFileName(path));

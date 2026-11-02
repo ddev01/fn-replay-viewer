@@ -160,6 +160,10 @@ internal sealed class MatchRoutes : IHttpRoute
         {
             await HttpJson.WriteErrorAsync(response, 422, ex.Message).ConfigureAwait(false);
         }
+        catch (UnreadableReplayException ex)
+        {
+            await HttpJson.WriteErrorAsync(response, 422, ex.Message).ConfigureAwait(false);
+        }
         catch (UnauthorizedAccessException ex)
         {
             await HttpJson.WriteErrorAsync(response, 400, ex.Message).ConfigureAwait(false);
