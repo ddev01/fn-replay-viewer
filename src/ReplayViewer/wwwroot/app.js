@@ -758,10 +758,6 @@ function renderTimeline() {
 }
 
 /**
- * @param {unknown} value
- * @returns {string}
- */
-/**
  * Shows the update banner when the app has an update waiting. Silent updates apply on the next
  * launch, so this is the way to take one immediately.
  */
@@ -784,6 +780,10 @@ async function loadUpdateBanner() {
   }
 }
 
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
