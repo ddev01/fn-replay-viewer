@@ -137,6 +137,71 @@ test("a failed scrape reports it instead of leaving Scraping… up", async ({ pa
   await expect(page.locator("#status")).toContainText("Could not reach Replay Viewer");
 });
 
+test("an unplaced squad shows #? rather than nothing", async ({ page }) => {
+  const unplaced = {
+    ...match,
+    teams: [{ teamIndex: 0, players: match.teams[0].players }],
+  };
+  await page.route("**/api/match", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(unplaced),
+    })
+  );
+  await page.goto("about:blank");
+  await page.goto("/");
+
+  await expect(page.locator("#roster .place").first()).toHaveText("#?");
+});
+
+test("a fast scrape does not flash the banner", async ({ page }) => {
+  await page.route("**/api/match", (route) => route.fulfill({ status: 404, body: "" }));
+  await page.route("**/api/scrape", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(match),
+    })
+  );
+  await page.goto("about:blank");
+  await page.goto("/");
+
+  await expect(page.locator("#roster .team")).toHaveCount(2);
+  await expect(page.locator("#status")).toBeHidden();
+});
+
+test("the demos menu is a labelled icon button that opens the panel", async ({ page }) => {
+  const button = page.getByRole("button", { name: "Demos" });
+  await expect(button).toBeVisible();
+  await button.click();
+  await expect(page.locator("#demos-panel")).toBeVisible();
+});
+
+test("a replay without an owner explains the empty You timeline", async ({ page }) => {
+  const noOwner = {
+    ...match,
+    teams: match.teams.map((team) => ({
+      ...team,
+      players: team.players.map((player) => ({ ...player, isYou: false })),
+    })),
+  };
+  await page.route("**/api/match", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(noOwner),
+    })
+  );
+  await page.goto("about:blank");
+  await page.goto("/");
+
+  await expect(page.locator("#roster .team")).toHaveCount(2);
+  await expect(page.locator("#timeline")).toContainText(
+    "doesn't record which player you were"
+  );
+});
+
 test("has no serious or critical accessibility violations", async ({ page }) => {
   await expect(page.locator("#roster .team")).toHaveCount(2);
 

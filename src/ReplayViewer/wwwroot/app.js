@@ -294,16 +294,6 @@ function setDemosOpen(open) {
 }
 
 /**
- * @param {RosterPlayer} player
- * @returns {string}
- */
-function anonymousLabel(player) {
-  if (!player.anonymous) return "";
-  if (player.playerNumber != null) return `anonymous ${player.playerNumber}`;
-  return "anonymous";
-}
-
-/**
  * @param {string} file
  * @param {string} title
  * @param {string} [extraClass]
@@ -507,7 +497,9 @@ async function scrape(path) {
   // the Demos panel calls this directly.
   if (scraping) return;
   scraping = true;
-  showStatus("Scraping…");
+  // A cached match comes back in ~18ms; flashing "Scraping…" for that reads as a glitch, so
+  // the banner only appears once the wait is long enough to notice.
+  const bannerDelay = setTimeout(() => showStatus("Scraping…"), 250);
   try {
     const res = await fetch("/api/scrape", {
       method: "POST",
@@ -529,6 +521,7 @@ async function scrape(path) {
     // The app exited or the listener is gone; leaving "Scraping…" up would be a lie.
     showStatus("Could not reach Replay Viewer.");
   } finally {
+    clearTimeout(bannerDelay);
     scraping = false;
   }
 }
@@ -592,10 +585,12 @@ function render() {
     card.className = "team";
     if (team.players.some((p) => p.isYou)) card.classList.add("yours");
     card.id = `team-${team.teamIndex}`;
-    const place = team.placement != null ? `#${team.placement}` : "";
+    const place = team.placement != null ? `#${team.placement}` : "#?";
     card.innerHTML = `
-      <h3 class="squad-head"><span>Squad</span><span class="place">${place}</span></h3>
-      <div class="team-meta">${teamKills(team)} elims</div>
+      <h3 class="squad-head">
+        <span class="place">${place}</span>
+        <span class="team-elims">${themedIcon("kill.svg", "Elims", "kill")}${teamKills(team)}</span>
+      </h3>
     `;
     card.querySelector(".squad-head")?.addEventListener("click", () => {
       selectSquad(team);
@@ -607,7 +602,6 @@ function render() {
       row.className = "player";
       if (p.epicId) row.dataset.player = p.epicId.toLowerCase();
       if (idsEqual(p.epicId, state.focusPlayerId)) row.classList.add("highlight");
-      const anon = anonymousLabel(p);
       row.innerHTML = `
         <div>
           <div class="pname-row">
@@ -619,7 +613,6 @@ function render() {
             ${nameFnButton(p.epicId)}
             ${p.isYou ? `<span class="badge you">you</span>` : ""}
             ${p.isBot ? `<span class="badge">bot</span>` : ""}
-            ${anon ? `<span class="badge">${escapeHtml(anon)}</span>` : ""}
             ${p.fill === "fill" ? `<span class="badge fill">fill</span>` : ""}
           </div>
         </div>
@@ -686,6 +679,22 @@ function nameButton(label, team, id, role) {
   return `<button type="button" class="name-link ${role}" data-team="${escapeHtml(teamAttr)}" data-id="${escapeHtml(id || "")}">${escapeHtml(text)}</button>`;
 }
 
+/**
+ * @param {MatchDocument} match
+ * @returns {string}
+ */
+function emptyTimelineMessage(match) {
+  if (state.tab === "you" && youId(match) == null) {
+    return "This replay doesn't record which player you were, so there is no personal timeline.";
+  }
+
+  if (state.tab === "team" && state.focusTeam == null) {
+    return "Select a squad to see its timeline.";
+  }
+
+  return "Nothing recorded here.";
+}
+
 function renderTimeline() {
   const match = state.match;
   const ol = $("timeline");
@@ -695,6 +704,16 @@ function renderTimeline() {
   const rows = filterEvents(match);
   const storm = match.safeZonesStartTime;
   let stormDone = storm == null;
+
+  if (rows.length === 0) {
+    // An empty list with no explanation reads as a broken page, so say why it is empty.
+    const empty = document.createElement("li");
+    empty.className = "empty";
+    empty.textContent = emptyTimelineMessage(match);
+    ol.appendChild(empty);
+    return;
+  }
+
   for (const e of rows) {
     if (!stormDone && storm != null && e.timeSeconds >= storm) {
       const marker = document.createElement("li");

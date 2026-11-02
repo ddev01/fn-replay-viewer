@@ -7,14 +7,7 @@
     <link rel="stylesheet" href="/app.css" />
   </head>
   <body>
-    <header class="top">
-      <div class="brand">
-        <button id="toggle-demos" type="button" aria-expanded="false" aria-controls="demos-panel">
-          Demos
-        </button>
-        <h1>Replay Viewer</h1>
-      </div>
-    </header>
+    <h1 class="sr-only">Replay Viewer</h1>
     <p id="status" class="status" hidden></p>
     <div id="demos-backdrop" class="demos-backdrop" hidden></div>
     <aside id="demos-panel" class="demos-panel" hidden>
@@ -27,6 +20,30 @@
     <main>
       <section id="summary" class="summary" hidden></section>
       <div class="toolbar">
+        <button
+          id="toggle-demos"
+          type="button"
+          class="menu-btn"
+          aria-label="Demos"
+          aria-expanded="false"
+          aria-controls="demos-panel"
+          title="Demos"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M4 5h16" />
+            <path d="M4 12h16" />
+            <path d="M4 19h16" />
+          </svg>
+        </button>
         <label class="search">
           <input id="search" type="search" placeholder="Player name" aria-label="Search roster" />
         </label>

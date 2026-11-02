@@ -31,22 +31,19 @@ body {
     radial-gradient(900px 400px at 100% 0%, #182033 0%, transparent 50%),
     var(--bg);
 }
-.top {
-  position: sticky;
-  top: 0;
-  z-index: 8;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg-2) 88%, transparent);
-  backdrop-filter: blur(12px);
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
-.brand { display: flex; align-items: center; gap: 12px; }
 h1 { margin: 0; font-size: 1.05rem; letter-spacing: 0.02em; font-weight: 650; }
 h2 { margin: 0; font-size: 0.95rem; }
-.actions, .brand { display: flex; gap: 8px; align-items: center; }
 button {
   background: var(--panel-2);
   color: var(--text);
@@ -60,6 +57,12 @@ button.primary {
   border-color: #4d7cc4;
 }
 button.ghost { background: transparent; }
+.menu-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 9px;
+}
+.menu-btn svg { width: 18px; height: 18px; }
 button.active, button:hover { border-color: var(--accent); }
 button:disabled { opacity: 0.45; cursor: default; }
 .status {
@@ -134,7 +137,6 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
 .search input, .search input:focus {
   display: block;
   width: min(320px, 100%);
-  margin-top: 6px;
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--line);
@@ -156,7 +158,7 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
   border-radius: 14px;
   padding: 12px 12px 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-  scroll-margin-top: 72px;
+  scroll-margin-top: 16px;
 }
 .team.flash {
   outline: 2px solid var(--accent);
@@ -174,7 +176,13 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
   padding: 2px 0;
 }
 .place { color: var(--gold); font-variant-numeric: tabular-nums; }
-.team-meta { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+.team-elims {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
 .player {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -231,7 +239,13 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
 .badge.you { background: #1c3b2a; color: #7ee0a3; }
 .badge.fill { background: #3a2f24; color: #c9a27a; }
 .kills { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.timelines { margin-top: 32px; scroll-margin-top: 72px; }
+.timelines { margin-top: 14px; scroll-margin-top: 16px; }
+.timeline li.empty {
+  display: block;
+  color: var(--muted);
+  font-style: italic;
+  padding: 10px 0;
+}
 .tabs, .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .timeline { list-style: none; padding: 0; margin: 0; }
 .timeline li {
