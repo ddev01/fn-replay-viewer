@@ -93,15 +93,44 @@ test("renders the summary, team cards and roster players", async ({ page }) => {
   await expect(page.locator("#timeline li").first()).toBeVisible();
 });
 
-test("a failed scrape reports it instead of leaving Scraping… up", async ({ page }) => {
-  await page.route("**/api/scrape", (route) => route.abort());
+test("opens the newest replay when nothing is cached", async ({ page }) => {
+  let posts = 0;
+  await page.route("**/api/match", (route) => route.fulfill({ status: 404, body: "" }));
+  await page.route("**/api/scrape", (route) => {
+    posts += 1;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(match),
+    });
+  });
+
+  await page.reload();
+
+  await expect(page.locator("#roster .team")).toHaveCount(2);
+  expect(posts).toBe(1);
+});
+
+test("reloading stays on the cached replay instead of scraping again", async ({ page }) => {
+  let posts = 0;
+  page.on("request", (request) => {
+    if (request.url().includes("/api/scrape")) posts += 1;
+  });
+
+  await expect(page.locator("#roster .team")).toHaveCount(2);
+  await page.reload();
   await expect(page.locator("#roster .team")).toHaveCount(2);
 
-  const button = page.locator("#scrape");
-  await button.click();
+  expect(posts).toBe(0);
+});
+
+test("a failed scrape reports it instead of leaving Scraping… up", async ({ page }) => {
+  await page.route("**/api/match", (route) => route.fulfill({ status: 404, body: "" }));
+  await page.route("**/api/scrape", (route) => route.abort());
+
+  await page.reload();
 
   await expect(page.locator("#status")).toContainText("Could not reach Replay Viewer");
-  await expect(button).toBeEnabled();
 });
 
 test("has no serious or critical accessibility violations", async ({ page }) => {

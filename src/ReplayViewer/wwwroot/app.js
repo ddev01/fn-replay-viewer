@@ -507,9 +507,6 @@ async function scrape(path) {
   // the Demos panel calls this directly.
   if (scraping) return;
   scraping = true;
-  /** @type {HTMLButtonElement} */
-  const button = /** @type {HTMLButtonElement} */ ($("scrape"));
-  button.disabled = true;
   showStatus("Scraping…");
   try {
     const res = await fetch("/api/scrape", {
@@ -527,14 +524,12 @@ async function scrape(path) {
     state.focusTeam = null;
     state.focusPlayerId = null;
     state.teamSelected = new Set();
-    /** @type {HTMLButtonElement} */ ($("export")).disabled = false;
     render();
   } catch {
     // The app exited or the listener is gone; leaving "Scraping…" up would be a lie.
     showStatus("Could not reach Replay Viewer.");
   } finally {
     scraping = false;
-    button.disabled = false;
   }
 }
 
@@ -755,10 +750,6 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-$("scrape").addEventListener("click", () => scrape(""));
-$("export").addEventListener("click", () => {
-  window.location.href = "/api/match.json";
-});
 $input("search").addEventListener("input", render);
 $input("show-bots").addEventListener("change", render);
 $("sort-placement").addEventListener("click", () => {
@@ -802,14 +793,19 @@ fetch("/api/config")
     /* config is optional: no NameFN links when the endpoint is down */
   });
 loadDemos().catch((err) => showStatus(String(err)));
+// Show what the server already has, so reloading stays on the same replay. Only when nothing
+// is cached yet does the page pick the newest finished replay by itself.
 fetch("/api/match")
   .then((res) => (res.ok ? res.json() : null))
   .then((match) => {
-    if (!match) return;
-    state.match = match;
-    /** @type {HTMLButtonElement} */ ($("export")).disabled = false;
-    render();
+    if (match) {
+      state.match = match;
+      render();
+      return undefined;
+    }
+
+    return scrape("");
   })
   .catch(() => {
-    /* no match scraped yet: the page starts empty on purpose */
+    /* the listener is gone; scrape() already reports that on the status line */
   });
