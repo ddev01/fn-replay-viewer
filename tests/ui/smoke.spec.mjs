@@ -63,7 +63,7 @@ test("themed icons are masked, not painted as solid blocks", async ({ page }) =>
       nameFn: width(".tracker.namefn .icon"),
     };
   });
-  expect(sizes).toEqual({ platform: "24px", tracker: "24px", nameFn: "24px" });
+  expect(sizes).toEqual({ platform: "20px", tracker: "20px", nameFn: "20px" });
 
   // Both links belong beside the platform icon, not on the name line.
   expect(await page.locator(".pname-row .tracker").count()).toBe(0);
@@ -75,8 +75,12 @@ test("themed icons are masked, not painted as solid blocks", async ({ page }) =>
 test("renders the summary, team cards and roster players", async ({ page }) => {
   const summary = page.locator("#summary");
   await expect(summary).toBeVisible();
-  await expect(summary).toContainText("ShowdownAlt Solo");
-  await expect(summary).toContainText("Your place 1");
+  // The summary is one row: date, team place, then the owner stats.
+  await expect(summary).toContainText("Team place 1");
+  await expect(summary.locator(".stat")).toHaveCount(8);
+  await expect(summary).not.toContainText("Your place");
+  await expect(summary).not.toContainText("Team size");
+  await expect(summary).not.toContainText("ShowdownAlt");
 
   const teams = page.locator("#roster .team");
   await expect(teams).toHaveCount(2);

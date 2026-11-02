@@ -572,13 +572,10 @@ function render() {
   const youStats = ownerStatChips(match.ownerStats);
   summary.innerHTML = `
     <div class="match-chips">
-      <span class="chip">${escapeHtml(prettyPlaylist(match.playlist))}</span>
-      <span class="chip">Team size ${match.teamSize ?? "—"}</span>
-      <span class="chip">${escapeHtml(recorded)}</span>
-      <span class="chip">Your place ${match.yourPlacement ?? "—"}</span>
-      <span class="chip">Team place ${match.teamPlacement ?? "—"}</span>
+      <span class="stat">${escapeHtml(recorded)}</span>
+      ${match.teamPlacement != null ? `<span class="stat">Team place ${match.teamPlacement}</span>` : ""}
+      ${youStats}
     </div>
-    ${youStats ? `<div class="owner-stats">${youStats}</div>` : ""}
   `;
 
   $("sort-placement").classList.toggle("active", state.sort === "placement");
@@ -600,7 +597,7 @@ function render() {
     card.className = "team";
     if (team.players.some((p) => p.isYou)) card.classList.add("yours");
     card.id = `team-${team.teamIndex}`;
-    const place = team.placement != null ? `#${team.placement}` : "unplaced";
+    const place = team.placement != null ? `#${team.placement}` : "";
     card.innerHTML = `
       <h3 class="squad-head"><span>Squad</span><span class="place">${place}</span></h3>
       <div class="team-meta">${teamKills(team)} elims</div>
@@ -652,15 +649,6 @@ function render() {
     renderTeamPlayerFilters(match);
   }
   renderTimeline();
-}
-
-/**
- * @param {string | null | undefined} id
- * @returns {string}
- */
-function prettyPlaylist(id) {
-  if (!id) return "Unknown playlist";
-  return id.replace(/^Playlist_/, "").replaceAll("_", " ");
 }
 
 /**
