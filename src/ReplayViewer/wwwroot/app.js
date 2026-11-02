@@ -620,11 +620,11 @@ function render() {
         <div>
           <div class="pname-row">
             <span class="pname">${escapeHtml(p.name)}</span>
-            ${trackerButton(p.name)}
-            ${nameFnButton(p.epicId)}
           </div>
           <div class="badges">
             ${platformMarkup(p.platform)}
+            ${trackerButton(p.name)}
+            ${nameFnButton(p.epicId)}
             ${p.isYou ? `<span class="badge you">you</span>` : ""}
             ${p.isBot ? `<span class="badge">bot</span>` : ""}
             ${anon ? `<span class="badge">${escapeHtml(anon)}</span>` : ""}

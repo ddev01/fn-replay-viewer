@@ -151,7 +151,7 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
 .toggle { color: var(--muted); display: flex; gap: 8px; align-items: center; padding-bottom: 6px; }
 .roster {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: 14px;
 }
 .team {
@@ -205,15 +205,21 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
   line-height: 0;
 }
 .tracker .icon.themed {
-  width: 12px;
-  height: 12px;
-  max-width: 12px;
-  max-height: 12px;
-  -webkit-mask-size: 12px 12px;
-  mask-size: 12px 12px;
+  width: 24px;
+  height: 24px;
+  max-width: 24px;
+  max-height: 24px;
+  -webkit-mask-size: 24px 24px;
+  mask-size: 24px 24px;
 }
 .tracker:hover { color: var(--accent); }
-.badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+}
 .badge {
   font-size: 10px;
   letter-spacing: 0.02em;
@@ -382,15 +388,24 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: 24px;
+  height: 24px;
   overflow: hidden;
 }
+.plat .icon.themed {
+  width: 24px;
+  height: 24px;
+  max-width: 24px;
+  max-height: 24px;
+  flex: 0 0 24px;
+  -webkit-mask-size: 24px 24px;
+  mask-size: 24px 24px;
+}
 .plat img {
-  width: 14px !important;
-  height: 14px !important;
-  max-width: 14px;
-  max-height: 14px;
+  width: 24px !important;
+  height: 24px !important;
+  max-width: 24px;
+  max-height: 24px;
   object-fit: contain;
 }
 .player.highlight {
