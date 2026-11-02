@@ -18,5 +18,6 @@ public sealed class UnreadableReplayException : InvalidOperationException
         : base(
             "This replay could not be read. It may still be recording — try again once the match ends.",
             inner
-        ) { }
+        )
+    { }
 }
