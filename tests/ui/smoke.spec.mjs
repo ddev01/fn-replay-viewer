@@ -52,8 +52,9 @@ test("themed icons are masked, not painted as solid blocks", async ({ page }) =>
   // The platform, tracker and NameFN icons are 24px. flex-basis wins over width in the
   // tracker, so asserting the computed width is what catches a regression here.
   const sizes = await page.evaluate(() => {
+    const doc = globalThis.document;
     const width = (selector) => {
-      const node = document.querySelector(selector);
+      const node = doc.querySelector(selector);
       return node ? node.ownerDocument.defaultView.getComputedStyle(node).width : "missing";
     };
     return {
