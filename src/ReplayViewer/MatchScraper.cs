@@ -1,3 +1,4 @@
+using System.Runtime;
 using ReplayViewer.Core;
 
 namespace ReplayViewer;
@@ -45,12 +46,35 @@ internal sealed class MatchScraper : IMatchScraper
             throw new LiveReplayException();
         }
 
+        // A cached match skips the copy and the parse, which is the whole point: 0.5-3s saved.
+        var cacheKey = MatchCache.KeyFor(path);
+        if (
+            cacheKey is not null
+            && MatchCache.TryRead(MatchCache.DefaultRoot, cacheKey, out var cached)
+            && cached is not null
+        )
+        {
+            return cached;
+        }
+
         var copy = ReplayFileAccess.CopyWithReadWriteShare(path);
         try
         {
             var snapshot = await _probe.ReadAsync(copy, cancellationToken).ConfigureAwait(false);
             snapshot = snapshot with { SourceFileName = Path.GetFileName(path) };
-            return MatchAssembler.Build(snapshot, DateTimeOffset.UtcNow);
+            var match = MatchAssembler.Build(snapshot, DateTimeOffset.UtcNow);
+            if (cacheKey is not null)
+            {
+                MatchCache.Write(MatchCache.DefaultRoot, cacheKey, match);
+            }
+
+            // Parsing a 17-21 MB replay allocates hundreds of MB of transient buffers, most of
+            // it on the large object heap, and the runtime keeps that committed afterwards. This
+            // app then idles in the tray while the game needs the RAM, so hand it back now.
+            GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+
+            return match;
         }
         finally
         {
