@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using ReplayViewer.Core;
 
 namespace ReplayViewer;
@@ -6,6 +7,10 @@ namespace ReplayViewer;
 internal sealed class TrayApp : ApplicationContext
 {
     private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(6);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     private readonly NotifyIcon _icon;
     private readonly ListenerHost _host;
@@ -47,6 +52,10 @@ internal sealed class TrayApp : ApplicationContext
         {
             if (e.Button == MouseButtons.Right)
             {
+                // A manually shown menu is not the foreground window, so it never receives the
+                // click that should dismiss it and stays open when you click into another app.
+                // Taking the foreground first gives it the normal popup behaviour.
+                SetForegroundWindow(_menu.Handle);
                 _menu.Show(Cursor.Position);
             }
         };
