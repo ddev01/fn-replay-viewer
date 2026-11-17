@@ -134,7 +134,11 @@ public sealed record DemoListItem(
 
 public interface IMatchScraper
 {
+    bool BackfillRunning { get; }
+
     IReadOnlyList<DemoListItem> ListRecent(int take = 20);
 
     Task<MatchDocument> ScrapeAsync(string? replayPath, CancellationToken cancellationToken);
+
+    void StartBackfill();
 }

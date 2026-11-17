@@ -305,7 +305,11 @@ public sealed class MatchRoutesTests : IAsyncLifetime
 
         public string? LastPath { get; private set; }
 
+        public bool BackfillRunning => false;
+
         public IReadOnlyList<DemoListItem> ListRecent(int take = 20) => [];
+
+        public void StartBackfill() { }
 
         public Task<MatchDocument> ScrapeAsync(
             string? replayPath,

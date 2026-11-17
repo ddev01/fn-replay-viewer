@@ -95,7 +95,12 @@ internal sealed class MatchRoutes : IHttpRoute
 
             if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase) && path == "/api/demos")
             {
-                await HttpJson.WriteJsonAsync(response, _scraper.ListRecent()).ConfigureAwait(false);
+                await HttpJson
+                    .WriteJsonAsync(
+                        response,
+                        new { demos = _scraper.ListRecent(), backfill = _scraper.BackfillRunning }
+                    )
+                    .ConfigureAwait(false);
                 return;
             }
 

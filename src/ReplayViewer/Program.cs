@@ -86,6 +86,7 @@ internal static class Program
             return 1;
         }
 
+        scraper.StartBackfill();
         var tray = new TrayApp(host);
         Application.Run(tray);
         return 0;

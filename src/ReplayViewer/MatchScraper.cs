@@ -5,8 +5,28 @@ namespace ReplayViewer;
 
 internal sealed class MatchScraper : IMatchScraper
 {
+    // Keep backfill in step with the sidebar: older replays are not reachable in the UI.
+    private const int BackfillTake = 20;
+
     private readonly FortniteReplayProbe _probe = new();
+    private readonly FortniteReplayProbe _backgroundProbe = new()
+    {
+        Timeout = TimeSpan.FromSeconds(20),
+    };
     private readonly MatchCacheIndex _index = MatchCacheIndex.Default;
+    private readonly object _gate = new();
+    private Task? _backfill;
+
+    public bool BackfillRunning
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _backfill is { IsCompleted: false };
+            }
+        }
+    }
 
     public IReadOnlyList<DemoListItem> ListRecent(int take = 20) =>
         DemoCatalog
@@ -39,25 +59,89 @@ internal sealed class MatchScraper : IMatchScraper
             return cached;
         }
 
+        var match = await ParseAsync(_probe, path, cancellationToken).ConfigureAwait(false);
+        SaveIfUnchanged(replay, cacheKey, match);
+        CompactAfterParse();
+        StartBackfill();
+        return match;
+    }
+
+    public void StartBackfill()
+    {
+        lock (_gate)
+        {
+            if (_backfill is { IsCompleted: false })
+            {
+                return;
+            }
+
+            _backfill = Task.Run(BackfillAsync);
+        }
+    }
+
+    private async Task BackfillAsync()
+    {
+        var replays = DemoCatalog
+            .ListRecent(DemosFolder.DefaultPath, BackfillTake)
+            .Where(replay => !IsFresh(replay))
+            .ToArray();
+        if (replays.Length == 0)
+        {
+            return;
+        }
+
+        var parsed = 0;
+        foreach (var replay in replays)
+        {
+            var cacheKey = MatchCache.KeyFor(replay.Path);
+            try
+            {
+                if (replay.Length < 1024)
+                {
+                    continue;
+                }
+
+                if (ReplayHeader.TryInspect(replay.Path, out var header) && header.IsLive)
+                {
+                    continue;
+                }
+
+                var match = await ParseAsync(
+                        _backgroundProbe,
+                        replay.Path,
+                        CancellationToken.None
+                    )
+                    .ConfigureAwait(false);
+                if (SaveIfUnchanged(replay, cacheKey, match))
+                {
+                    parsed++;
+                }
+            }
+            catch (Exception ex)
+            {
+                FileLog.Info($"backfill skipped {replay.Name}: {ex.Message}");
+                _index.SaveFailure(replay, cacheKey);
+            }
+        }
+
+        if (parsed > 0)
+        {
+            FileLog.Info($"backfill: parsed {parsed}");
+        }
+    }
+
+    private static async Task<MatchDocument> ParseAsync(
+        FortniteReplayProbe probe,
+        string path,
+        CancellationToken cancellationToken
+    )
+    {
         var copy = ReplayFileAccess.CopyWithReadWriteShare(path);
         try
         {
-            var snapshot = await _probe.ReadAsync(copy, cancellationToken).ConfigureAwait(false);
+            var snapshot = await probe.ReadAsync(copy, cancellationToken).ConfigureAwait(false);
             snapshot = snapshot with { SourceFileName = Path.GetFileName(path) };
-            var match = MatchAssembler.Build(snapshot, DateTimeOffset.UtcNow);
-            if (cacheKey is not null && Unchanged(replay))
-            {
-                MatchCache.Write(MatchCache.DefaultRoot, cacheKey, match);
-                _index.Save(replay, cacheKey, match);
-            }
-
-            // Parsing a 17-21 MB replay allocates hundreds of MB of transient buffers, most of
-            // it on the large object heap, and the runtime keeps that committed afterwards. This
-            // app then idles in the tray while the game needs the RAM, so hand it back now.
-            GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
-            GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
-
-            return match;
+            return MatchAssembler.Build(snapshot, DateTimeOffset.UtcNow);
         }
         finally
         {
@@ -116,10 +200,31 @@ internal sealed class MatchScraper : IMatchScraper
         );
     }
 
+    private bool SaveIfUnchanged(DemoListItem before, string? cacheKey, MatchDocument match)
+    {
+        if (cacheKey is null || !Unchanged(before))
+        {
+            return false;
+        }
+
+        MatchCache.Write(MatchCache.DefaultRoot, cacheKey, match);
+        _index.Save(before, cacheKey, match);
+        return true;
+    }
+
     private static bool Unchanged(DemoListItem before)
     {
         var after = Describe(before.Path);
         return after.Length == before.Length && after.LastWriteUtc == before.LastWriteUtc;
+    }
+
+    private static void CompactAfterParse()
+    {
+        // Parsing a 17-21 MB replay allocates hundreds of MB of transient buffers, most of it on
+        // the large object heap, and the runtime keeps that committed afterwards. This app then
+        // idles in the tray while the game needs the RAM, so hand it back now.
+        GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
     }
 
     private DemoListItem WithIndex(DemoListItem replay)
@@ -146,5 +251,16 @@ internal sealed class MatchScraper : IMatchScraper
             Placement = entry.Placement,
             Elims = entry.Elims,
         };
+    }
+
+    private bool IsFresh(DemoListItem replay)
+    {
+        var key = MatchCache.KeyFor(replay.Path);
+        var entry = _index.Get(replay, key);
+        return entry is not null
+            && (
+                entry.Failed
+                || (key is not null && MatchCache.Exists(MatchCache.DefaultRoot, key))
+            );
     }
 }
