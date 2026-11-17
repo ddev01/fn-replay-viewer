@@ -171,6 +171,10 @@ test("a fast scrape does not flash the banner", async ({ page }) => {
   await expect(page.locator("#status")).toBeHidden();
 });
 
+test("the update banner stays hidden without an update", async ({ page }) => {
+  await expect(page.locator("#update-banner")).toBeHidden();
+});
+
 test("the demos menu is a labelled icon button that opens the panel", async ({ page }) => {
   const button = page.getByRole("button", { name: "Demos" });
   await expect(button).toBeVisible();

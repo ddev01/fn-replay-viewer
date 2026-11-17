@@ -139,6 +139,10 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
 .update-banner strong { display: block; font-size: 0.98rem; }
 .update-banner span { color: var(--muted); font-size: 0.85rem; }
 .update-banner button { flex: 0 0 auto; }
+/* display:flex above overrides the hidden attribute's display:none, so restate it. */
+.update-banner[hidden] {
+  display: none;
+}
 
 .summary { margin-bottom: 10px; }
 .match-chips {
