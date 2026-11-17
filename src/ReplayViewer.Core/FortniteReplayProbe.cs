@@ -145,7 +145,8 @@ public sealed class FortniteReplayProbe
             ownerStats,
             players,
             teams,
-            events
+            events,
+            replay.Info?.LengthInMs is uint ms ? ms / 1000.0 : null
         );
     }
 

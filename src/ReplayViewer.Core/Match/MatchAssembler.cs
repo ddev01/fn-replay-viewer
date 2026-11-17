@@ -87,6 +87,10 @@ public static class MatchAssembler
             yourPlacement = you.Placement ?? teamPlacement;
         }
 
+        var duration =
+            snapshot.DurationSeconds
+            ?? (snapshot.Events.Count > 0 ? snapshot.Events.Max(e => e.TimeSeconds) : null);
+
         return new MatchDocument(
             snapshot.SourceFileName,
             scrapedAt,
@@ -99,6 +103,7 @@ public static class MatchAssembler
             snapshot.OwnerStats,
             teams,
             events,
+            duration,
             MapNames.ForPlaylist(snapshot.Playlist)
         );
     }
