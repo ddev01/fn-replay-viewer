@@ -56,6 +56,9 @@ internal sealed class MatchScraper : IMatchScraper
         )
         {
             _index.Save(replay, cacheKey, cached);
+            // Opening a cached match is still a user action: catch up any games played since
+            // the last backfill.
+            StartBackfill();
             return cached;
         }
 
