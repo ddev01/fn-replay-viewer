@@ -24,8 +24,8 @@ const PLATFORM_ICONS = {
  *   nameFnPublicUrl: string | null,
  *   demos: DemoListItem[],
  *   currentFile: string | null,
- *   demosTimer: ReturnType<typeof setTimeout> | null,
- *   statusTimer: ReturnType<typeof setTimeout> | null,
+ *   demosTimer: number | undefined,
+ *   statusTimer: number | undefined,
  *   backfill: boolean,
  *   loadingDemos: boolean,
  *   lastDemosRefresh: number
@@ -42,8 +42,8 @@ const state = {
   nameFnPublicUrl: null,
   demos: [],
   currentFile: null,
-  demosTimer: null,
-  statusTimer: null,
+  demosTimer: undefined,
+  statusTimer: undefined,
   backfill: false,
   loadingDemos: false,
   lastDemosRefresh: 0,
@@ -520,6 +520,15 @@ function formatDuration(seconds) {
 }
 
 /**
+ * @param {string | undefined} id
+ * @returns {string}
+ */
+function prettyPlaylist(id) {
+  if (!id) return "Unknown playlist";
+  return id.replace(/^Playlist_/, "").replaceAll("_", " ");
+}
+
+/**
  * @param {DemoListItem} demo
  * @returns {string}
  */
@@ -549,10 +558,8 @@ function demoMeta(demo) {
  * @returns {boolean}
  */
 function isCurrentDemo(demo) {
-  return (
-    Boolean(state.currentFile) &&
-    demo.name.toLowerCase() === state.currentFile.toLowerCase()
-  );
+  const current = state.currentFile;
+  return current !== null && demo.name.toLowerCase() === current.toLowerCase();
 }
 
 function renderDemos() {
@@ -606,6 +613,9 @@ async function loadDemos() {
 
 const DEMO_REFRESH_MS = 10000;
 
+/**
+ * @param {boolean} [force]
+ */
 function refreshDemos(force) {
   // Skip while the page is hidden or another window (the game) has focus.
   if (document.visibilityState !== "visible" || !document.hasFocus()) return;
@@ -697,7 +707,7 @@ function render() {
   const youStats = ownerStatChips(match.ownerStats);
   summary.innerHTML = `
     <div class="match-chips">
-      <span class="stat">${escapeHtml(match.mapName || prettyPlaylist(match.playlist))}</span>
+      ${match.mapName ? `<span class="stat">${escapeHtml(match.mapName)}</span>` : ""}
       <span class="stat">${escapeHtml(recorded)}</span>
       ${match.teamPlacement != null ? `<span class="stat">Team place ${match.teamPlacement}</span>` : ""}
       ${youStats}
