@@ -18,7 +18,8 @@ public class FortniteReplayProbeTests
         var snapshot = await ReadNewestFinishedAsync();
         Assert.SkipWhen(snapshot is null, "No finished replay in the Demos folder.");
 
-        var you = snapshot!.Players.First(p => p.IsReplayOwner);
+        var you = snapshot!.Players.FirstOrDefault(p => p.IsReplayOwner);
+        Assert.SkipWhen(you is null, "The newest replay has no replay owner.");
         var rows = snapshot
             .Events.Where(e =>
                 string.Equals(e.ActorId, you.EpicId, StringComparison.OrdinalIgnoreCase)
