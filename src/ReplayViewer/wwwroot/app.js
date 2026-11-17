@@ -26,7 +26,9 @@ const PLATFORM_ICONS = {
  *   currentFile: string | null,
  *   demosTimer: ReturnType<typeof setTimeout> | null,
  *   statusTimer: ReturnType<typeof setTimeout> | null,
- *   backfill: boolean
+ *   backfill: boolean,
+ *   loadingDemos: boolean,
+ *   lastDemosRefresh: number
  * }}
  */
 const state = {
@@ -43,6 +45,8 @@ const state = {
   demosTimer: null,
   statusTimer: null,
   backfill: false,
+  loadingDemos: false,
+  lastDemosRefresh: 0,
 };
 
 /**
@@ -306,6 +310,7 @@ function setDemosOpen(open) {
   $("demos-panel").hidden = !open;
   $("demos-backdrop").hidden = !open;
   $("toggle-demos").setAttribute("aria-expanded", String(open));
+  if (open) loadDemos();
 }
 
 /**
@@ -579,6 +584,9 @@ function renderDemos() {
 }
 
 async function loadDemos() {
+  if (state.loadingDemos) return;
+  state.loadingDemos = true;
+  state.lastDemosRefresh = Date.now();
   clearTimeout(state.demosTimer);
   try {
     const res = await fetch("/api/demos");
@@ -588,10 +596,21 @@ async function loadDemos() {
     renderDemos();
   } catch (err) {
     showStatus(String(err));
+  } finally {
+    state.loadingDemos = false;
+    if (state.backfill) {
+      state.demosTimer = setTimeout(loadDemos, 2000);
+    }
   }
-  if (state.backfill) {
-    state.demosTimer = setTimeout(loadDemos, 2000);
-  }
+}
+
+const DEMO_REFRESH_MS = 10000;
+
+function refreshDemos(force) {
+  // Skip while the page is hidden or another window (the game) has focus.
+  if (document.visibilityState !== "visible" || !document.hasFocus()) return;
+  if (!force && Date.now() - state.lastDemosRefresh < DEMO_REFRESH_MS) return;
+  loadDemos();
 }
 
 /**
@@ -960,6 +979,12 @@ tabButtons().forEach((btn) => {
   });
 });
 
+window.addEventListener("focus", () => refreshDemos(true));
+document.addEventListener("visibilitychange", () => refreshDemos(true));
+document.addEventListener("mousemove", () => refreshDemos(false));
+document.addEventListener("wheel", () => refreshDemos(false));
+document.addEventListener("keydown", () => refreshDemos(false));
+
 fetch("/api/config")
   .then((res) => (res.ok ? res.json() : null))
   .then((cfg) => {
@@ -968,7 +993,7 @@ fetch("/api/config")
   .catch(() => {
     /* config is optional: no NameFN links when the endpoint is down */
   });
-loadDemos().catch((err) => showStatus(String(err)));
+loadDemos();
 loadUpdateBanner();
 // Show what the server already has, so reloading stays on the same replay. Only when nothing
 // is cached yet does the page pick the newest finished replay by itself.

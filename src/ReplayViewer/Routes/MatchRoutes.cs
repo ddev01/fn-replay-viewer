@@ -95,6 +95,9 @@ internal sealed class MatchRoutes : IHttpRoute
 
             if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase) && path == "/api/demos")
             {
+                // The page only asks for the list while it is visible and focused, so this is
+                // user activity rather than a background timer.
+                _scraper.StartBackfill();
                 await HttpJson
                     .WriteJsonAsync(
                         response,
