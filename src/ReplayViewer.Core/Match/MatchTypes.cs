@@ -132,13 +132,15 @@ public sealed record DemoListItem(
     bool Cached = false
 );
 
+public sealed record ScrapeResult(MatchDocument Match, bool Cached);
+
 public interface IMatchScraper
 {
     bool BackfillRunning { get; }
 
     IReadOnlyList<DemoListItem> ListRecent(int take = 20);
 
-    Task<MatchDocument> ScrapeAsync(string? replayPath, CancellationToken cancellationToken);
+    Task<ScrapeResult> ScrapeAsync(string? replayPath, CancellationToken cancellationToken);
 
     void StartBackfill();
 }

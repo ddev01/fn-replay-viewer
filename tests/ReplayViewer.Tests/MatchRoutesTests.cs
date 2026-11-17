@@ -226,7 +226,7 @@ public sealed class MatchRoutesTests : IAsyncLifetime
         {
             entered.TrySetResult();
             await release.Task;
-            return Match;
+            return new ScrapeResult(Match, Cached: false);
         };
 
         var first = Post("{}", "application/json");
@@ -299,7 +299,7 @@ public sealed class MatchRoutesTests : IAsyncLifetime
         public Func<MatchDocument> OnScrape { get; set; } = () => Match;
 
         /// <summary>When set, used instead of <see cref="OnScrape"/> so a test can hold a scrape open.</summary>
-        public Func<Task<MatchDocument>>? OnScrapeAsync { get; set; }
+        public Func<Task<ScrapeResult>>? OnScrapeAsync { get; set; }
 
         public int Calls { get; private set; }
 
@@ -311,7 +311,7 @@ public sealed class MatchRoutesTests : IAsyncLifetime
 
         public void StartBackfill() { }
 
-        public Task<MatchDocument> ScrapeAsync(
+        public Task<ScrapeResult> ScrapeAsync(
             string? replayPath,
             CancellationToken cancellationToken
         )
@@ -319,7 +319,7 @@ public sealed class MatchRoutesTests : IAsyncLifetime
             Calls++;
             LastPath = replayPath;
             return OnScrapeAsync is null
-                ? Task.FromResult(OnScrape())
+                ? Task.FromResult(new ScrapeResult(OnScrape(), Cached: false))
                 : OnScrapeAsync();
         }
     }

@@ -152,10 +152,10 @@ internal sealed class MatchRoutes : IHttpRoute
                     return;
                 }
 
-                MatchDocument match;
+                ScrapeResult result;
                 try
                 {
-                    match = await _scraper
+                    result = await _scraper
                         .ScrapeAsync(replayPath, cancellationToken)
                         .ConfigureAwait(false);
                 }
@@ -164,8 +164,13 @@ internal sealed class MatchRoutes : IHttpRoute
                     ScrapeGate.Release();
                 }
 
-                s_last = match;
-                await HttpJson.WriteJsonAsync(response, match).ConfigureAwait(false);
+                s_last = result.Match;
+                if (result.Cached)
+                {
+                    response.AddHeader("X-Replay-Cached", "1");
+                }
+
+                await HttpJson.WriteJsonAsync(response, result.Match).ConfigureAwait(false);
                 return;
             }
 

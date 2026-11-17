@@ -34,7 +34,7 @@ internal sealed class MatchScraper : IMatchScraper
             .Select(WithIndex)
             .ToArray();
 
-    public async Task<MatchDocument> ScrapeAsync(
+    public async Task<ScrapeResult> ScrapeAsync(
         string? replayPath,
         CancellationToken cancellationToken
     )
@@ -59,14 +59,14 @@ internal sealed class MatchScraper : IMatchScraper
             // Opening a cached match is still a user action: catch up any games played since
             // the last backfill.
             StartBackfill();
-            return cached;
+            return new ScrapeResult(cached, Cached: true);
         }
 
         var match = await ParseAsync(_probe, path, cancellationToken).ConfigureAwait(false);
         SaveIfUnchanged(replay, cacheKey, match);
         CompactAfterParse();
         StartBackfill();
-        return match;
+        return new ScrapeResult(match, Cached: false);
     }
 
     public void StartBackfill()

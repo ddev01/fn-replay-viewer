@@ -644,7 +644,8 @@ async function scrape(path, name) {
       showStatus(data.error || `Scrape failed (${res.status})`);
       return;
     }
-    showStatus("Done", 2500);
+    const cached = res.headers.get("x-replay-cached") === "1";
+    showStatus(cached ? "" : "Done", cached ? undefined : 2500);
     state.match = data;
     state.currentFile = data.sourceFile || name || null;
     state.focusTeam = null;
