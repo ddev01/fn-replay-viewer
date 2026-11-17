@@ -98,7 +98,8 @@ public static class MatchAssembler
             snapshot.SafeZonesStartTime,
             snapshot.OwnerStats,
             teams,
-            events
+            events,
+            MapNames.ForPlaylist(snapshot.Playlist)
         );
     }
 

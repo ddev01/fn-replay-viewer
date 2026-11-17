@@ -79,7 +79,8 @@ public sealed record MatchDocument(
     double? SafeZonesStartTime,
     OwnerStatsSnapshot? OwnerStats,
     IReadOnlyList<TeamRoster> Teams,
-    IReadOnlyList<MatchEvent> Events
+    IReadOnlyList<MatchEvent> Events,
+    string? MapName = null
 );
 
 public sealed record TeamRoster(
