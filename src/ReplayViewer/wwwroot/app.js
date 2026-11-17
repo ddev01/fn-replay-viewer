@@ -21,7 +21,12 @@ const PLATFORM_ICONS = {
  *   teamSelected: Set<string>,
  *   sort: SortMode,
  *   demosOpen: boolean,
- *   nameFnPublicUrl: string | null
+ *   nameFnPublicUrl: string | null,
+ *   demos: DemoListItem[],
+ *   currentFile: string | null,
+ *   demosTimer: ReturnType<typeof setTimeout> | null,
+ *   statusTimer: ReturnType<typeof setTimeout> | null,
+ *   backfill: boolean
  * }}
  */
 const state = {
@@ -33,6 +38,11 @@ const state = {
   sort: "placement",
   demosOpen: false,
   nameFnPublicUrl: null,
+  demos: [],
+  currentFile: null,
+  demosTimer: null,
+  statusTimer: null,
+  backfill: false,
 };
 
 /**
@@ -276,11 +286,16 @@ function formatTime(seconds) {
 
 /**
  * @param {string} text
+ * @param {number} [autoHideMs]
  */
-function showStatus(text) {
+function showStatus(text, autoHideMs) {
   const el = $("status");
   el.hidden = !text;
   el.textContent = text || "";
+  clearTimeout(state.statusTimer);
+  if (text && autoHideMs) {
+    state.statusTimer = setTimeout(() => showStatus(""), autoHideMs);
+  }
 }
 
 /**
@@ -471,32 +486,129 @@ function cssEscape(value) {
   return String(value).replace(/"/g, '\\"');
 }
 
-async function loadDemos() {
-  const res = await fetch("/api/demos");
-  const demos = /** @type {DemoListItem[]} */ (await res.json());
+/**
+ * @param {string | undefined} value
+ * @returns {string}
+ */
+function formatMatchDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * @param {number | undefined} seconds
+ * @returns {string}
+ */
+function formatDuration(seconds) {
+  const s = Math.max(0, Math.round(seconds || 0));
+  const m = Math.floor(s / 60);
+  const r = String(s % 60).padStart(2, "0");
+  return `${m}:${r}`;
+}
+
+/**
+ * @param {DemoListItem} demo
+ * @returns {string}
+ */
+function demoTitle(demo) {
+  if (demo.mapName) return demo.mapName;
+  if (demo.playlist) return prettyPlaylist(demo.playlist);
+  return demo.name.replace(/\.replay$/i, "");
+}
+
+/**
+ * @param {DemoListItem} demo
+ * @returns {string}
+ */
+function demoMeta(demo) {
+  const bits = [];
+  const when = formatMatchDate(demo.recordedAt || demo.lastWriteUtc);
+  if (when) bits.push(when);
+  if (demo.durationSeconds != null) bits.push(formatDuration(demo.durationSeconds));
+  if (demo.placement != null) bits.push(`Finish #${demo.placement}`);
+  if (demo.elims != null) bits.push(`${demo.elims} elim${demo.elims === 1 ? "" : "s"}`);
+  if (!demo.cached) bits.push("not cached");
+  return bits.join(" · ");
+}
+
+/**
+ * @param {DemoListItem} demo
+ * @returns {boolean}
+ */
+function isCurrentDemo(demo) {
+  return (
+    Boolean(state.currentFile) &&
+    demo.name.toLowerCase() === state.currentFile.toLowerCase()
+  );
+}
+
+function renderDemos() {
   const ul = $("demos");
+  const scroll = ul.scrollTop;
   ul.innerHTML = "";
-  for (const demo of demos) {
+  for (const demo of state.demos) {
     const li = document.createElement("li");
-    li.textContent = demo.name.replace(/\.replay$/i, "");
+    li.className = "demo";
+    if (isCurrentDemo(demo)) {
+      li.classList.add("current");
+      li.setAttribute("aria-current", "true");
+    }
     li.title = demo.path;
+    const title = document.createElement("div");
+    title.className = "demo-title";
+    title.textContent = demoTitle(demo);
+    const meta = document.createElement("div");
+    meta.className = "demo-meta";
+    meta.textContent = demoMeta(demo);
+    li.append(title, meta);
     li.addEventListener("click", () => {
       setDemosOpen(false);
-      scrape(demo.path);
+      scrape(demo.path, demo.name);
     });
     ul.appendChild(li);
+  }
+  ul.scrollTop = scroll;
+}
+
+async function loadDemos() {
+  clearTimeout(state.demosTimer);
+  try {
+    const res = await fetch("/api/demos");
+    const data = await res.json();
+    state.demos = Array.isArray(data) ? data : data.demos || [];
+    state.backfill = Boolean(data.backfill);
+    renderDemos();
+  } catch (err) {
+    showStatus(String(err));
+  }
+  if (state.backfill) {
+    state.demosTimer = setTimeout(loadDemos, 2000);
   }
 }
 
 /**
  * @param {string} path
+ * @param {string} [name]
  */
-async function scrape(path) {
+async function scrape(path, name) {
   // Two overlapping scrapes race: whichever response arrives last wins, so the roster can
   // show a different demo than the one clicked last. Guard here, not on the button, because
   // the Demos panel calls this directly.
   if (scraping) return;
   scraping = true;
+  const previousFile = state.currentFile;
+  if (name) {
+    state.currentFile = name;
+    renderDemos();
+  }
   // A cached match comes back in ~18ms; flashing "Scraping…" for that reads as a glitch, so
   // the banner only appears once the wait is long enough to notice.
   const bannerDelay = setTimeout(() => showStatus("Scraping…"), 250);
@@ -508,15 +620,20 @@ async function scrape(path) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
+      state.currentFile = previousFile;
+      renderDemos();
       showStatus(data.error || `Scrape failed (${res.status})`);
       return;
     }
-    showStatus("");
+    showStatus("Done", 2500);
     state.match = data;
+    state.currentFile = data.sourceFile || name || null;
     state.focusTeam = null;
     state.focusPlayerId = null;
     state.teamSelected = new Set();
     render();
+    renderDemos();
+    loadDemos();
   } catch {
     // The app exited or the listener is gone; leaving "Scraping…" up would be a lie.
     showStatus("Could not reach Replay Viewer.");
@@ -560,6 +677,7 @@ function render() {
   const youStats = ownerStatChips(match.ownerStats);
   summary.innerHTML = `
     <div class="match-chips">
+      <span class="stat">${escapeHtml(match.mapName || prettyPlaylist(match.playlist))}</span>
       <span class="stat">${escapeHtml(recorded)}</span>
       ${match.teamPlacement != null ? `<span class="stat">Team place ${match.teamPlacement}</span>` : ""}
       ${youStats}
@@ -859,7 +977,9 @@ fetch("/api/match")
   .then((match) => {
     if (match) {
       state.match = match;
+      state.currentFile = match.sourceFile || null;
       render();
+      renderDemos();
       return undefined;
     }
 

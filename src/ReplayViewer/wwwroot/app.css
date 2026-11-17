@@ -99,12 +99,27 @@ button:disabled { opacity: 0.45; cursor: default; }
 }
 .demos-panel ul { list-style: none; margin: 0; padding: 0; }
 .demos-panel li {
-  padding: 10px 10px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
   border-radius: 8px;
   cursor: pointer;
   color: var(--muted);
 }
 .demos-panel li:hover { background: var(--panel-2); color: var(--text); }
+.demos-panel li.current,
+.demos-panel li.current:hover {
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel-2));
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+}
+.demo-title {
+  color: var(--text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.demos-panel li.current .demo-title { color: var(--accent); }
+.demo-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
 main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
 .update-banner {
   display: flex;

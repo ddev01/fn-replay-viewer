@@ -73,6 +73,8 @@ interface MatchDocument {
   ownerStats?: OwnerStats;
   teams: TeamRoster[];
   events: MatchEvent[];
+  durationSeconds?: number;
+  mapName?: string;
 }
 
 /** MatchTypes.cs: DemoListItem */
@@ -81,6 +83,13 @@ interface DemoListItem {
   path: string;
   length: number;
   lastWriteUtc: string;
+  mapName?: string;
+  playlist?: string;
+  recordedAt?: string;
+  durationSeconds?: number;
+  placement?: number;
+  elims?: number;
+  cached?: boolean;
 }
 
 /** MatchRoutes.cs GET /api/config */
