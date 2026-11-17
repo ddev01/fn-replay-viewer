@@ -122,7 +122,14 @@ public sealed record DemoListItem(
     string Name,
     string Path,
     long Length,
-    DateTimeOffset LastWriteUtc
+    DateTimeOffset LastWriteUtc,
+    string? MapName = null,
+    string? Playlist = null,
+    DateTimeOffset? RecordedAt = null,
+    double? DurationSeconds = null,
+    int? Placement = null,
+    int? Elims = null,
+    bool Cached = false
 );
 
 public interface IMatchScraper

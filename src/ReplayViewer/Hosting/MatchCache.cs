@@ -37,6 +37,9 @@ internal static class MatchCache
         }
     }
 
+    public static bool Exists(string root, string key) =>
+        File.Exists(Path.Combine(root, key + ".json.br"));
+
     public static bool TryRead(string root, string key, out MatchDocument? match)
     {
         match = null;
