@@ -339,43 +339,6 @@ test("a replay without an owner explains the empty You timeline", async ({ page 
   await expect(page.locator("#timeline")).toContainText("doesn't record which player you were");
 });
 
-test("a replay without an owner lets you point at yourself", async ({ page }) => {
-  const noOwner = {
-    ...match,
-    teams: match.teams.map((team) => ({
-      ...team,
-      players: team.players.map((player) => ({ ...player, isYou: false })),
-    })),
-  };
-  await page.route("**/api/match", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(noOwner),
-    })
-  );
-  let posted = null;
-  await page.route("**/api/owner", async (route) => {
-    posted = route.request().postDataJSON();
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ remembered: posted.epicId }),
-    });
-  });
-  await page.goto("about:blank");
-  await page.goto("/");
-
-  await expect(page.locator("#timeline")).toContainText("doesn't record which player you were");
-  const picker = page.locator(".owner-pick");
-  await expect(picker).toBeVisible();
-  await picker.locator("select").selectOption({ label: "Nova (5 elims)" });
-  const epicId = await picker.locator("select").inputValue();
-  await picker.getByRole("button", { name: "Remember" }).click();
-
-  await expect.poll(() => posted?.epicId).toBe(epicId);
-});
-
 test("has no serious or critical accessibility violations", async ({ page }) => {
   await expect(page.locator("#roster .team")).toHaveCount(2);
 

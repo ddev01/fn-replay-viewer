@@ -976,50 +976,6 @@ function emptyTimelineMessage(match) {
   return "Nothing recorded here.";
 }
 
-/**
- * A replay whose file never names the owner cannot guess it from the roster alone, so let the
- * player point at themselves once; the id is remembered for every later replay.
- * @param {MatchDocument} match
- * @returns {HTMLElement | null}
- */
-function ownerPicker(match) {
-  const players = match.teams.flatMap((team) => team.players).filter((p) => p.epicId);
-  if (players.length === 0) return null;
-
-  const li = document.createElement("li");
-  li.className = "owner-pick";
-  const label = document.createElement("label");
-  label.textContent = "That's me: ";
-  const select = document.createElement("select");
-  for (const p of players) {
-    const option = document.createElement("option");
-    option.value = /** @type {string} */ (p.epicId);
-    option.textContent = `${p.name} (${p.kills} elim${p.kills === 1 ? "" : "s"})`;
-    select.appendChild(option);
-  }
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = "Remember";
-  button.addEventListener("click", async () => {
-    button.disabled = true;
-    try {
-      const res = await fetch("/api/owner", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ epicId: select.value }),
-      });
-      if (!res.ok) throw new Error("save failed");
-      await scrape(match.sourceFile, state.currentFile ?? undefined);
-    } catch {
-      showStatus("Could not remember that player.");
-      button.disabled = false;
-    }
-  });
-  label.appendChild(select);
-  li.append(label, button);
-  return li;
-}
-
 function renderTimeline() {
   const match = state.match;
   const ol = $("timeline");
@@ -1036,10 +992,6 @@ function renderTimeline() {
     empty.className = "empty";
     empty.textContent = emptyTimelineMessage(match);
     ol.appendChild(empty);
-    if (state.tab === "you" && youId(match) == null) {
-      const picker = ownerPicker(match);
-      if (picker) ol.appendChild(picker);
-    }
     return;
   }
 
