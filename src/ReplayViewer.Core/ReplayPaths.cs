@@ -8,7 +8,9 @@ public static class ReplayPaths
         ArgumentException.ThrowIfNullOrWhiteSpace(replayPath);
 
         var root = Path.GetFullPath(directory);
-        var full = Path.GetFullPath(replayPath);
+        // A bare file name is what the page keeps in the URL; an absolute path still wins over
+        // the folder, and the check below is what keeps both inside it.
+        var full = Path.GetFullPath(Path.Combine(root, replayPath));
         var prefix = root.EndsWith(Path.DirectorySeparatorChar)
             ? root
             : root + Path.DirectorySeparatorChar;

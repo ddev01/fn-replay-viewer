@@ -182,6 +182,141 @@ test("the demos menu is a labelled icon button that opens the panel", async ({ p
   await expect(page.locator("#demos-panel")).toBeVisible();
 });
 
+test("a demo row puts kills and placement on the title line, right aligned", async ({ page }) => {
+  await page.getByRole("button", { name: "Demos" }).click();
+  const row = page.locator("#demos li").first();
+  await expect(row.locator(".demo-title")).toHaveText("Reload - Surf City");
+  await expect(row.locator(".demo-kills")).toHaveText("Eliminations 12");
+  await expect(row.locator(".demo-place")).toHaveText("Placement #4/40");
+  // The score sits in the same row as the title and hugs the right edge.
+  const boxes = await row.evaluate((node) => {
+    const box = (selector) => node.querySelector(selector).getBoundingClientRect();
+    return {
+      row: node.getBoundingClientRect().right,
+      title: box(".demo-row"),
+      score: box(".demo-score").right,
+    };
+  });
+  expect(Math.abs(boxes.row - boxes.score)).toBeLessThan(12);
+});
+
+test("a clicked demo is put in the URL and Back returns without reloading", async ({ page }) => {
+  // Echo the clicked file back the way the server does, so each click is a different URL.
+  await page.route("**/api/scrape", (route) => {
+    const name = String(route.request().postDataJSON().path).split(/[\\/]/).pop();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ...match, sourceFile: name }),
+    });
+  });
+  await page.reload();
+  await expect(page).toHaveURL(/[?&]replay=UnrealReplay_2026\.10\.31-20\.15\.00\.replay/);
+
+  await page.evaluate(() => {
+    globalThis.__sameDoc = true;
+  });
+  await page.getByRole("button", { name: "Demos" }).click();
+  await page.locator("#demos li").nth(1).click();
+  await expect(page).toHaveURL(/[?&]replay=UnrealReplay_2026\.10\.30-19\.02\.11\.replay/);
+
+  await page.evaluate(() => globalThis.history.back());
+  await expect(page).toHaveURL(/[?&]replay=UnrealReplay_2026\.10\.31-20\.15\.00\.replay/);
+  expect(await page.evaluate(() => globalThis.__sameDoc)).toBe(true);
+});
+
+test("a replay named in the URL opens on a cold load", async ({ page }) => {
+  await page.route("**/api/match", (route) => route.fulfill({ status: 404, body: "" }));
+  let asked = null;
+  await page.route("**/api/scrape", (route) => {
+    asked = route.request().postDataJSON().path;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(match),
+    });
+  });
+
+  await page.goto("/?replay=UnrealReplay_2026.10.30-19.02.11.replay");
+
+  await expect(page.locator("#roster .team")).toHaveCount(2);
+  expect(asked).toBe("UnrealReplay_2026.10.30-19.02.11.replay");
+});
+
+test("a replay the parser stalls on is named and explained", async ({ page }) => {
+  const stuck = { ...demos[0], name: "UnsavedReplay-2026.11.13-17.21.46.replay", unreadable: true };
+  await page.route("**/api/demos", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ demos: [stuck], backfill: false }),
+    })
+  );
+  await page.reload();
+  await page.getByRole("button", { name: "Demos" }).click();
+
+  const row = page.locator("#demos li").first();
+  await expect(row).toHaveClass(/unreadable/);
+  // The file name means nothing to a player, and the date line stays short.
+  await expect(row.locator(".demo-title")).toHaveText("Broken replay file");
+  await expect(row.locator(".demo-meta")).not.toContainText("not cached");
+  await expect(row.locator(".demo-help")).toHaveAttribute("title", /parser can't read this replay file/);
+});
+
+test("the demo list pages in as it scrolls", async ({ page }) => {
+  const many = Array.from({ length: 45 }, (_, i) => ({
+    ...demos[0],
+    name: `UnrealReplay_${i}.replay`,
+    path: `C:\\Demos\\UnrealReplay_${i}.replay`,
+  }));
+  await page.route("**/api/demos", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ demos: many, backfill: false }),
+    })
+  );
+  await page.reload();
+  await page.getByRole("button", { name: "Demos" }).click();
+
+  const rows = page.locator("#demos li");
+  const panel = page.locator("#demos-panel");
+  await expect(rows).toHaveCount(20);
+
+  await panel.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  await expect(rows).toHaveCount(40);
+
+  await panel.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  await expect(rows).toHaveCount(45);
+});
+
+test("the demo list pages in on a tall window that never scrolls", async ({ page }) => {
+  // A maximised browser fits the first page: with no scrollbar the scroll event never fires,
+  // which used to leave the sidebar stuck on 20 rows.
+  await page.setViewportSize({ width: 1280, height: 1800 });
+  const many = Array.from({ length: 45 }, (_, i) => ({
+    ...demos[0],
+    name: `UnrealReplay_${i}.replay`,
+    path: `C:\\Demos\\UnrealReplay_${i}.replay`,
+  }));
+  await page.route("**/api/demos", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ demos: many, backfill: false }),
+    })
+  );
+  await page.reload();
+  await page.getByRole("button", { name: "Demos" }).click();
+
+  await expect(page.locator("#demos li").first()).toBeVisible();
+  expect(await page.locator("#demos li").count()).toBeGreaterThan(20);
+});
+
 test("a replay without an owner explains the empty You timeline", async ({ page }) => {
   const noOwner = {
     ...match,
@@ -202,6 +337,43 @@ test("a replay without an owner explains the empty You timeline", async ({ page 
 
   await expect(page.locator("#roster .team")).toHaveCount(2);
   await expect(page.locator("#timeline")).toContainText("doesn't record which player you were");
+});
+
+test("a replay without an owner lets you point at yourself", async ({ page }) => {
+  const noOwner = {
+    ...match,
+    teams: match.teams.map((team) => ({
+      ...team,
+      players: team.players.map((player) => ({ ...player, isYou: false })),
+    })),
+  };
+  await page.route("**/api/match", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(noOwner),
+    })
+  );
+  let posted = null;
+  await page.route("**/api/owner", async (route) => {
+    posted = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ remembered: posted.epicId }),
+    });
+  });
+  await page.goto("about:blank");
+  await page.goto("/");
+
+  await expect(page.locator("#timeline")).toContainText("doesn't record which player you were");
+  const picker = page.locator(".owner-pick");
+  await expect(picker).toBeVisible();
+  await picker.locator("select").selectOption({ label: "Nova (5 elims)" });
+  const epicId = await picker.locator("select").inputValue();
+  await picker.getByRole("button", { name: "Remember" }).click();
+
+  await expect.poll(() => posted?.epicId).toBe(epicId);
 });
 
 test("has no serious or critical accessibility violations", async ({ page }) => {

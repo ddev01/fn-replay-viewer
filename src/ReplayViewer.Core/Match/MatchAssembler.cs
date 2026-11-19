@@ -105,6 +105,7 @@ public static class MatchAssembler
             events,
             duration,
             MapNames.ForPlaylist(snapshot.Playlist)
+                ?? (snapshot.IsCreative ? "Creative" : null)
         );
     }
 
@@ -143,7 +144,8 @@ public static class MatchAssembler
             player.Disconnected,
             player.Anonymous,
             ResolveFill(player, teamMates, snapshot.TeamSize),
-            player.PlayerNumber
+            player.PlayerNumber,
+            player.Placement
         );
     }
 

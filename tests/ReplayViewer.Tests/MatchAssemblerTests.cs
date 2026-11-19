@@ -293,6 +293,38 @@ public class MatchAssemblerTests
         Assert.Equal("Spaced Name", match.Teams.Single().Players.Single().Name);
     }
 
+    [Fact]
+    public void A_creative_replay_is_named_creative()
+    {
+        var match = MatchAssembler.Build(
+            Snapshot(
+                teamSize: null,
+                Players(P("a", team: 1, party: null)),
+                playlist: null,
+                creative: true
+            ),
+            DateTimeOffset.UnixEpoch
+        );
+
+        Assert.Equal("Creative", match.MapName);
+    }
+
+    [Fact]
+    public void A_reload_map_name_wins_over_the_creative_fallback()
+    {
+        var match = MatchAssembler.Build(
+            Snapshot(
+                teamSize: 2,
+                Players(P("a", team: 1, party: null)),
+                playlist: "Playlist_Habanero_NoBuild_PiperBoot_Duos",
+                creative: false
+            ),
+            DateTimeOffset.UnixEpoch
+        );
+
+        Assert.Equal("Reload - Surf City", match.MapName);
+    }
+
     private static PlayerSnapshot AnonymousPlayer(string id, int? number, bool you = false) =>
         new(id, null, "WIN", you, false, false, true, 1, null, id, 0, number);
 
@@ -302,18 +334,21 @@ public class MatchAssemblerTests
     private static ParsedReplaySnapshot Snapshot(
         int? teamSize,
         IReadOnlyList<PlayerSnapshot> players,
-        IReadOnlyList<TeamSnapshot>? teams = null
+        IReadOnlyList<TeamSnapshot>? teams = null,
+        string? playlist = "Playlist_DefaultSolo",
+        bool creative = false
     ) =>
         new(
             "test.replay",
-            "Playlist_DefaultSolo",
+            playlist,
             teamSize,
             DateTimeOffset.UnixEpoch,
             90,
             null,
             players,
             teams ?? [],
-            []
+            [],
+            IsCreative: creative
         );
 
     private static IReadOnlyList<PlayerSnapshot> Players(params PlayerSnapshot[] players) => players;

@@ -222,7 +222,7 @@ public class FortniteReplayProbeMappingTests
                 "Map",
                 BindingFlags.NonPublic | BindingFlags.Static
             ) ?? throw new InvalidOperationException("FortniteReplayProbe.Map was renamed.");
-        return (ParsedReplaySnapshot)method.Invoke(null, [replay, "test.replay"])!;
+        return (ParsedReplaySnapshot)method.Invoke(null, [replay, "test.replay", null])!;
     }
 
     private static FortniteReplay Replay(

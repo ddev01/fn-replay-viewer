@@ -20,4 +20,7 @@ public sealed class UnreadableReplayException : InvalidOperationException
             inner
         )
     { }
+
+    public UnreadableReplayException(string message, Exception? inner = null)
+        : base(message, inner) { }
 }

@@ -2,13 +2,8 @@ namespace ReplayViewer.Core;
 
 public static class DemoCatalog
 {
-    public static IReadOnlyList<DemoListItem> ListRecent(string directory, int take = 20)
+    public static IReadOnlyList<DemoListItem> ListAll(string directory)
     {
-        if (take < 1)
-        {
-            return [];
-        }
-
         if (!Directory.Exists(directory))
         {
             return [];
@@ -20,7 +15,6 @@ public static class DemoCatalog
             .Where(info => info.Exists)
             .OrderByDescending(info => info.LastWriteTimeUtc)
             .ThenByDescending(info => info.Name, StringComparer.OrdinalIgnoreCase)
-            .Take(take)
             .Select(info => new DemoListItem(
                 info.Name,
                 info.FullName,

@@ -111,7 +111,14 @@ button:disabled { opacity: 0.45; cursor: default; }
   background: color-mix(in srgb, var(--accent) 14%, var(--panel-2));
   border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
 }
+.demo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .demo-title {
+  flex: 1 1 auto;
+  min-width: 0;
   color: var(--text);
   font-weight: 600;
   overflow: hidden;
@@ -119,7 +126,58 @@ button:disabled { opacity: 0.45; cursor: default; }
   white-space: nowrap;
 }
 .demos-panel li.current .demo-title { color: var(--accent); }
-.demo-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+/* A replay the parser stalls on has no map name; keep its file name, but quietly. */
+.demos-panel li.unreadable .demo-title { color: var(--muted); font-weight: 400; }
+.demos-panel li.unreadable { cursor: default; }
+.demo-help {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+}
+.demo-help .icon.themed {
+  width: 12px;
+  height: 12px;
+  max-width: 12px;
+  max-height: 12px;
+  flex: 0 0 12px;
+  -webkit-mask-size: 12px 12px;
+  mask-size: 12px 12px;
+}
+.demo-score {
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.demo-kills {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  /* A fixed box right-aligns the count, so the placement lines up under it. */
+  min-width: 2.6em;
+  color: var(--kill);
+}
+.demo-kills .icon.themed {
+  width: 12px;
+  height: 12px;
+  max-width: 12px;
+  max-height: 12px;
+  flex: 0 0 12px;
+  -webkit-mask-size: 12px 12px;
+  mask-size: 12px 12px;
+}
+.demo-place { color: var(--gold); }
+.demo-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
 main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
 .update-banner {
   display: flex;
@@ -284,6 +342,21 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
   font-style: italic;
   padding: 10px 0;
 }
+.owner-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 10px;
+}
+.owner-pick label { color: var(--muted); }
+.owner-pick select {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  max-width: 280px;
+}
 .tabs, .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .timeline { list-style: none; padding: 0; margin: 0; }
 .timeline li {
@@ -400,6 +473,7 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
 /* The icon URL lives here, not in an inline style attribute: the page is served with
    style-src 'self', which blocks style="--icon:url(...)" and leaves a solid block. */
 .icon-kill { --icon: url("/icons/kill.svg"); }
+.icon-help { --icon: url("/icons/help.svg"); }
 .icon-knock { --icon: url("/icons/knock.svg"); }
 .icon-arrow { --icon: url("/icons/arrow.svg"); }
 .icon-external { --icon: url("/icons/external.svg"); }

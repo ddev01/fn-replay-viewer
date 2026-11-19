@@ -28,7 +28,9 @@ const PLATFORM_ICONS = {
  *   statusTimer: number | undefined,
  *   backfill: boolean,
  *   loadingDemos: boolean,
- *   lastDemosRefresh: number
+ *   lastDemosRefresh: number,
+ *   demosShown: number,
+ *   demosSignature: string
  * }}
  */
 const state = {
@@ -47,7 +49,30 @@ const state = {
   backfill: false,
   loadingDemos: false,
   lastDemosRefresh: 0,
+  demosShown: 0,
+  demosSignature: "",
 };
+
+const REPLAY_PARAM = "replay";
+
+/** @returns {string | null} */
+function replayFromUrl() {
+  return new URLSearchParams(location.search).get(REPLAY_PARAM);
+}
+
+/**
+ * Keeps the address bar on the replay being viewed, so back, forward and the browser's history
+ * can reach it. push adds an entry; the default replaces the current one.
+ * @param {string | null} name
+ * @param {boolean} [push]
+ */
+function setReplayUrl(name, push) {
+  const url = new URL(location.href);
+  if (name) url.searchParams.set(REPLAY_PARAM, name);
+  else url.searchParams.delete(REPLAY_PARAM);
+  if (url.href === location.href) return;
+  history[push ? "pushState" : "replaceState"](null, "", url);
+}
 
 /**
  * @param {string} id
@@ -61,6 +86,10 @@ const $ = (id) => {
 
 /** @type {boolean} */
 let scraping = false;
+
+/** A click that arrived while a scrape was running; the last one wins. */
+/** @type {{ path: string, name: string | undefined, push: boolean } | null} */
+let queuedScrape = null;
 
 /**
  * The ids read through here are the page's checkboxes and search box.
@@ -310,7 +339,11 @@ function setDemosOpen(open) {
   $("demos-panel").hidden = !open;
   $("demos-backdrop").hidden = !open;
   $("toggle-demos").setAttribute("aria-expanded", String(open));
-  if (open) loadDemos();
+  if (open) {
+    loadDemos();
+    // The rows rendered while the panel was hidden could not measure it.
+    fillDemos();
+  }
 }
 
 /**
@@ -492,34 +525,6 @@ function cssEscape(value) {
 }
 
 /**
- * @param {string | undefined} value
- * @returns {string}
- */
-function formatMatchDate(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-/**
- * @param {number | undefined} seconds
- * @returns {string}
- */
-function formatDuration(seconds) {
-  const s = Math.max(0, Math.round(seconds || 0));
-  const m = Math.floor(s / 60);
-  const r = String(s % 60).padStart(2, "0");
-  return `${m}:${r}`;
-}
-
-/**
  * @param {string | undefined} id
  * @returns {string}
  */
@@ -533,24 +538,59 @@ function prettyPlaylist(id) {
  * @returns {string}
  */
 function demoTitle(demo) {
+  // A file the parser stalls on has no map at all, and its file name means nothing to a player.
+  if (demo.unreadable) return "Broken replay file";
   if (demo.mapName) return demo.mapName;
   if (demo.playlist) return prettyPlaylist(demo.playlist);
   return demo.name.replace(/\.replay$/i, "");
 }
 
 /**
+ * Date plus the start and end clock time: two bare times on one line read as a duration and a
+ * time, which is not what they are.
  * @param {DemoListItem} demo
  * @returns {string}
  */
 function demoMeta(demo) {
-  const bits = [];
-  const when = formatMatchDate(demo.recordedAt || demo.lastWriteUtc);
-  if (when) bits.push(when);
-  if (demo.durationSeconds != null) bits.push(formatDuration(demo.durationSeconds));
-  if (demo.placement != null) bits.push(`Finish #${demo.placement}`);
-  if (demo.elims != null) bits.push(`${demo.elims} elim${demo.elims === 1 ? "" : "s"}`);
-  if (!demo.cached) bits.push("not cached");
+  const stamp = demo.recordedAt || demo.lastWriteUtc;
+  const start = stamp ? new Date(stamp) : null;
+  if (!start || Number.isNaN(start.getTime())) return demo.cached ? "" : "not cached";
+  const clock = (/** @type {Date} */ date) =>
+    date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const end = demo.durationSeconds != null ? new Date(start.getTime() + demo.durationSeconds * 1000) : null;
+  const day = start.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+  const bits = [day, end ? `${clock(start)}-${clock(end)}` : clock(start)];
+  if (!demo.cached && !demo.unreadable) bits.push("not cached");
   return bits.join(" · ");
+}
+
+/**
+ * Kills and placement sit on the title line, right aligned, the way the game's own list shows
+ * them.
+ * @param {DemoListItem} demo
+ * @returns {HTMLElement}
+ */
+function demoScore(demo) {
+  const score = document.createElement("span");
+  score.className = "demo-score";
+  if (demo.elims != null) {
+    const kills = document.createElement("span");
+    kills.className = "demo-kills";
+    kills.innerHTML = `${themedIcon("kill.svg", "Eliminations")}<span class="sr-only">Eliminations </span>${demo.elims}`;
+    score.appendChild(kills);
+  }
+  if (demo.placement != null) {
+    const place = document.createElement("span");
+    place.className = "demo-place";
+    const outOf = demo.totalPlayers != null ? `/${demo.totalPlayers}` : "";
+    place.innerHTML = `<span class="sr-only">Placement </span>#${demo.placement}${outOf}`;
+    score.appendChild(place);
+  }
+  return score;
 }
 
 /**
@@ -562,32 +602,115 @@ function isCurrentDemo(demo) {
   return current !== null && demo.name.toLowerCase() === current.toLowerCase();
 }
 
-function renderDemos() {
-  const ul = $("demos");
-  const scroll = ul.scrollTop;
-  ul.innerHTML = "";
-  for (const demo of state.demos) {
-    const li = document.createElement("li");
-    li.className = "demo";
-    if (isCurrentDemo(demo)) {
-      li.classList.add("current");
-      li.setAttribute("aria-current", "true");
-    }
-    li.title = demo.path;
-    const title = document.createElement("div");
-    title.className = "demo-title";
-    title.textContent = demoTitle(demo);
-    const meta = document.createElement("div");
-    meta.className = "demo-meta";
-    meta.textContent = demoMeta(demo);
-    li.append(title, meta);
+const DEMO_PAGE = 20;
+
+/**
+ * Changes whenever the rows would look different, so the ten second refresh leaves a list the
+ * user is scrolling alone.
+ * @returns {string}
+ */
+function demoSignature() {
+  return `${state.demos.length}|${state.demos[0]?.name ?? ""}|${
+    state.currentFile ?? ""
+  }|${state.demos.filter((demo) => demo.cached).length}`;
+}
+
+/**
+ * @param {DemoListItem} demo
+ * @returns {HTMLElement}
+ */
+function demoRow(demo) {
+  const li = document.createElement("li");
+  li.className = "demo";
+  if (isCurrentDemo(demo)) {
+    li.classList.add("current");
+    li.setAttribute("aria-current", "true");
+  }
+  li.title = demo.path;
+  if (demo.unreadable) li.classList.add("unreadable");
+  const row = document.createElement("div");
+  row.className = "demo-row";
+  const title = document.createElement("span");
+  title.className = "demo-title";
+  title.textContent = demoTitle(demo);
+  row.append(title);
+  if (demo.unreadable) row.append(demoHelp());
+  row.append(demoScore(demo));
+  const meta = document.createElement("div");
+  meta.className = "demo-meta";
+  meta.textContent = demoMeta(demo);
+  li.append(row, meta);
+  if (!demo.unreadable) {
     li.addEventListener("click", () => {
       setDemosOpen(false);
-      scrape(demo.path, demo.name);
+      scrape(demo.path, demo.name, true);
     });
-    ul.appendChild(li);
   }
-  ul.scrollTop = scroll;
+  return li;
+}
+
+/**
+ * The file stays listed so it is not silently lost, but it cannot be opened; the icon carries the
+ * explanation instead of bloating the date line.
+ * @returns {HTMLElement}
+ */
+function demoHelp() {
+  const help = document.createElement("span");
+  help.className = "demo-help";
+  help.setAttribute("role", "img");
+  help.setAttribute("aria-label", unreadableText());
+  help.title = unreadableText();
+  help.innerHTML = themedIcon("help.svg", unreadableText());
+  return help;
+}
+
+/** @returns {string} */
+function unreadableText() {
+  return "Our parser can't read this replay file, so its map, kills and placement are unknown. The game itself can still play it.";
+}
+
+/**
+ * @param {number} count
+ */
+function appendDemos(count) {
+  const list = $("demos");
+  const end = Math.min(state.demos.length, state.demosShown + count);
+  for (let i = state.demosShown; i < end; i += 1) {
+    list.appendChild(demoRow(state.demos[i]));
+  }
+  state.demosShown = end;
+}
+
+/**
+ * A tall window fits the whole first page, so the panel never scrolls and no scroll event ever
+ * pages in the rest. Keep adding rows until the list is taller than the panel.
+ */
+function fillDemos() {
+  const panel = $("demos-panel");
+  if (panel.clientHeight === 0) return;
+  while (state.demosShown < state.demos.length && panel.scrollHeight <= panel.clientHeight) {
+    const shown = state.demosShown;
+    appendDemos(DEMO_PAGE);
+    if (state.demosShown === shown) break;
+  }
+}
+
+/**
+ * Renders the page of rows that is already on screen. Rebuilding only what is visible keeps a
+ * long list cheap and leaves the scroll position alone.
+ */
+function renderDemos() {
+  const signature = demoSignature();
+  if (signature === state.demosSignature) return;
+  state.demosSignature = signature;
+  const panel = $("demos-panel");
+  const scroll = panel.scrollTop;
+  const target = Math.max(state.demosShown, DEMO_PAGE);
+  $("demos").innerHTML = "";
+  state.demosShown = 0;
+  appendDemos(target);
+  fillDemos();
+  panel.scrollTop = scroll;
 }
 
 async function loadDemos() {
@@ -626,12 +749,17 @@ function refreshDemos(force) {
 /**
  * @param {string} path
  * @param {string} [name]
+ * @param {boolean} [push] add a history entry instead of replacing the current one
  */
-async function scrape(path, name) {
+async function scrape(path, name, push) {
   // Two overlapping scrapes race: whichever response arrives last wins, so the roster can
   // show a different demo than the one clicked last. Guard here, not on the button, because
-  // the Demos panel calls this directly.
-  if (scraping) return;
+  // the Demos panel calls this directly. Back and forward are real navigation, so the last one
+  // is run once the current scrape finishes rather than dropped.
+  if (scraping) {
+    queuedScrape = { path, name, push: push === true };
+    return;
+  }
   scraping = true;
   const previousFile = state.currentFile;
   if (name) {
@@ -650,6 +778,7 @@ async function scrape(path, name) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       state.currentFile = previousFile;
+      setReplayUrl(previousFile);
       renderDemos();
       showStatus(data.error || `Scrape failed (${res.status})`);
       return;
@@ -661,6 +790,7 @@ async function scrape(path, name) {
     state.focusTeam = null;
     state.focusPlayerId = null;
     state.teamSelected = new Set();
+    setReplayUrl(state.currentFile, push);
     render();
     renderDemos();
     loadDemos();
@@ -670,6 +800,9 @@ async function scrape(path, name) {
   } finally {
     clearTimeout(bannerDelay);
     scraping = false;
+    const next = queuedScrape;
+    queuedScrape = null;
+    if (next) scrape(next.path, next.name, next.push);
   }
 }
 
@@ -843,6 +976,50 @@ function emptyTimelineMessage(match) {
   return "Nothing recorded here.";
 }
 
+/**
+ * A replay whose file never names the owner cannot guess it from the roster alone, so let the
+ * player point at themselves once; the id is remembered for every later replay.
+ * @param {MatchDocument} match
+ * @returns {HTMLElement | null}
+ */
+function ownerPicker(match) {
+  const players = match.teams.flatMap((team) => team.players).filter((p) => p.epicId);
+  if (players.length === 0) return null;
+
+  const li = document.createElement("li");
+  li.className = "owner-pick";
+  const label = document.createElement("label");
+  label.textContent = "That's me: ";
+  const select = document.createElement("select");
+  for (const p of players) {
+    const option = document.createElement("option");
+    option.value = /** @type {string} */ (p.epicId);
+    option.textContent = `${p.name} (${p.kills} elim${p.kills === 1 ? "" : "s"})`;
+    select.appendChild(option);
+  }
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = "Remember";
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      const res = await fetch("/api/owner", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ epicId: select.value }),
+      });
+      if (!res.ok) throw new Error("save failed");
+      await scrape(match.sourceFile, state.currentFile ?? undefined);
+    } catch {
+      showStatus("Could not remember that player.");
+      button.disabled = false;
+    }
+  });
+  label.appendChild(select);
+  li.append(label, button);
+  return li;
+}
+
 function renderTimeline() {
   const match = state.match;
   const ol = $("timeline");
@@ -859,6 +1036,10 @@ function renderTimeline() {
     empty.className = "empty";
     empty.textContent = emptyTimelineMessage(match);
     ol.appendChild(empty);
+    if (state.tab === "you" && youId(match) == null) {
+      const picker = ownerPicker(match);
+      if (picker) ol.appendChild(picker);
+    }
     return;
   }
 
@@ -969,6 +1150,13 @@ $("sort-kills").addEventListener("click", () => {
 $("toggle-demos").addEventListener("click", () => setDemosOpen(!state.demosOpen));
 $("close-demos").addEventListener("click", () => setDemosOpen(false));
 $("demos-backdrop").addEventListener("click", () => setDemosOpen(false));
+$("demos-panel").addEventListener("scroll", () => {
+  const panel = $("demos-panel");
+  if (panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 240) {
+    appendDemos(DEMO_PAGE);
+    fillDemos();
+  }
+});
 [
   "hide-bots",
   "only-you",
@@ -1006,8 +1194,9 @@ fetch("/api/config")
   });
 loadDemos();
 loadUpdateBanner();
-// Show what the server already has, so reloading stays on the same replay. Only when nothing
-// is cached yet does the page pick the newest finished replay by itself.
+// Show what the server already has, so reloading stays on the same replay. The URL wins when it
+// names a replay: that covers a browser restart, where the server has nothing cached yet. Only
+// when neither exists does the page pick the newest finished replay by itself.
 fetch("/api/match")
   .then((res) => (res.ok ? res.json() : null))
   .then((match) => {
@@ -1016,11 +1205,17 @@ fetch("/api/match")
       state.currentFile = match.sourceFile || null;
       render();
       renderDemos();
+    }
+    const wanted = replayFromUrl();
+    if (match && (!wanted || idsEqual(match.sourceFile, wanted))) {
+      setReplayUrl(state.currentFile);
       return undefined;
     }
 
-    return scrape("");
+    return scrape(wanted || "");
   })
   .catch(() => {
     /* the listener is gone; scrape() already reports that on the status line */
   });
+
+window.addEventListener("popstate", () => scrape(replayFromUrl() || ""));

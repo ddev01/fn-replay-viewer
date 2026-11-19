@@ -18,7 +18,7 @@ public sealed class DemoCatalogTests : IDisposable
         Write("notes.txt", 5, DateTime.UtcNow.AddMinutes(-1));
         Write(Path.Combine("nested", "deep.replay"), 2, DateTime.UtcNow.AddMinutes(-1));
 
-        var items = DemoCatalog.ListRecent(_root);
+        var items = DemoCatalog.ListAll(_root);
 
         Assert.Equal(["newest.replay", "old.replay"], items.Select(i => i.Name).ToArray());
     }
@@ -30,31 +30,20 @@ public sealed class DemoCatalogTests : IDisposable
         Write("alpha.replay", 1, sameTime);
         Write("bravo.replay", 1, sameTime);
 
-        var items = DemoCatalog.ListRecent(_root);
+        var items = DemoCatalog.ListAll(_root);
 
         Assert.Equal(["bravo.replay", "alpha.replay"], items.Select(i => i.Name).ToArray());
     }
 
     [Fact]
-    public void Take_limits_the_result()
+    public void Lists_every_replay_in_the_folder()
     {
-        Write("a.replay", 1, DateTime.UtcNow.AddMinutes(-3));
-        Write("b.replay", 1, DateTime.UtcNow.AddMinutes(-2));
-        Write("c.replay", 1, DateTime.UtcNow.AddMinutes(-1));
+        for (var i = 0; i < 30; i++)
+        {
+            Write($"replay-{i:00}.replay", 1, DateTime.UtcNow.AddMinutes(-i));
+        }
 
-        var items = DemoCatalog.ListRecent(_root, take: 2);
-
-        Assert.Equal(["c.replay", "b.replay"], items.Select(i => i.Name).ToArray());
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public void Non_positive_take_returns_nothing(int take)
-    {
-        Write("a.replay", 1, DateTime.UtcNow);
-
-        Assert.Empty(DemoCatalog.ListRecent(_root, take));
+        Assert.Equal(30, DemoCatalog.ListAll(_root).Count);
     }
 
     [Fact]
@@ -62,7 +51,7 @@ public sealed class DemoCatalogTests : IDisposable
     {
         var missing = Path.Combine(_root, "does-not-exist");
 
-        Assert.Empty(DemoCatalog.ListRecent(missing));
+        Assert.Empty(DemoCatalog.ListAll(missing));
     }
 
     [Fact]
@@ -71,7 +60,7 @@ public sealed class DemoCatalogTests : IDisposable
         var written = DateTime.UtcNow.AddMinutes(-2);
         var file = Write("match.replay", 4, written);
 
-        var item = Assert.Single(DemoCatalog.ListRecent(_root));
+        var item = Assert.Single(DemoCatalog.ListAll(_root));
 
         Assert.Equal("match.replay", item.Name);
         Assert.Equal(Path.Combine(_root, "match.replay"), item.Path);

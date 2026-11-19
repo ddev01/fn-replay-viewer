@@ -32,6 +32,16 @@ public static class MapNames
             }
         }
 
+        // A Creative replay only records the Creative playlist, never the island's title, so
+        // the mode is all a replay file can tell us.
+        if (
+            playlist.Contains("Playground", StringComparison.OrdinalIgnoreCase)
+            || playlist.Contains("Creative", StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return "Creative";
+        }
+
         return null;
     }
 }

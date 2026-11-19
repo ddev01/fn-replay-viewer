@@ -93,15 +93,68 @@ internal sealed class MatchRoutes : IHttpRoute
                 return;
             }
 
+            if (
+                string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase)
+                && path == "/api/owner"
+            )
+            {
+                var ownerContentType = request.ContentType ?? "";
+                if (
+                    !ownerContentType.StartsWith(
+                        "application/json",
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
+                {
+                    await HttpJson.WriteErrorAsync(response, 415, "Expected JSON.").ConfigureAwait(false);
+                    return;
+                }
+
+                var ownerBody = await ReadBodyAsync(request, cancellationToken).ConfigureAwait(false);
+                if (ownerBody is null)
+                {
+                    await HttpJson.WriteErrorAsync(response, 413, "Request body is too large.")
+                        .ConfigureAwait(false);
+                    return;
+                }
+
+                string? epicId = null;
+                if (!string.IsNullOrWhiteSpace(ownerBody))
+                {
+                    using var doc = JsonDocument.Parse(ownerBody);
+                    if (
+                        doc.RootElement.TryGetProperty("epicId", out var idProp)
+                        && idProp.ValueKind == JsonValueKind.String
+                    )
+                    {
+                        epicId = idProp.GetString()?.Trim();
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(epicId) || epicId.Length > 64)
+                {
+                    await HttpJson.WriteErrorAsync(response, 400, "An epicId is required.")
+                        .ConfigureAwait(false);
+                    return;
+                }
+
+                _scraper.RememberOwner(epicId);
+                await HttpJson.WriteJsonAsync(response, new { remembered = epicId }).ConfigureAwait(false);
+                return;
+            }
+
             if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase) && path == "/api/demos")
             {
                 // The page only asks for the list while it is visible and focused, so this is
                 // user activity rather than a background timer.
+                // The page polls every two seconds while this is true, so read it before starting
+                // a pass: a pass that finishes in milliseconds would otherwise always look busy.
+                var backfill = _scraper.BackfillRunning;
                 _scraper.StartBackfill();
                 await HttpJson
                     .WriteJsonAsync(
                         response,
-                        new { demos = _scraper.ListRecent(), backfill = _scraper.BackfillRunning }
+                        new { demos = _scraper.ListDemos(), backfill }
                     )
                     .ConfigureAwait(false);
                 return;

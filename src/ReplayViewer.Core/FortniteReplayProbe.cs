@@ -14,6 +14,18 @@ public sealed class FortniteReplayProbe
 
     public TimeSpan Timeout { get; init; } = DefaultTimeout;
 
+    /// <summary>
+    /// The parser loops forever on a corrupt replay and cannot be cancelled, so the child process
+    /// that owns it is ended instead. This only runs in that child.
+    /// </summary>
+    public Action OnStall { get; init; } = () => Environment.Exit(3);
+
+    /// <summary>
+    /// A healthy replay moves to the next data chunk every few milliseconds; two seconds without
+    /// one means the parser is in a loop, not working.
+    /// </summary>
+    public TimeSpan StallWindow { get; init; } = TimeSpan.FromSeconds(2);
+
     public ParsedReplaySnapshot Read(string copiedReplayPath, CancellationToken cancellationToken)
     {
         return ReadAsync(copiedReplayPath, cancellationToken).GetAwaiter().GetResult();
@@ -43,22 +55,29 @@ public sealed class FortniteReplayProbe
         }
     }
 
-    private static ParsedReplaySnapshot Parse(string path)
+    private ParsedReplaySnapshot Parse(string path)
     {
         FortniteReplay? chosen = null;
+        ReplayReader? chosenReader = null;
         Exception? failure = null;
         foreach (var mode in Modes)
         {
             try
             {
-                var replay = new ReplayReader(parseMode: mode).ReadReplay(path);
+                var reader = new ReplayReader(parseMode: mode);
+                var replay = Read(reader, path);
                 if (HasPlayersAndEvents(replay))
                 {
                     chosen = replay;
+                    chosenReader = reader;
                     break;
                 }
 
-                chosen ??= replay;
+                if (chosen is null)
+                {
+                    chosen = replay;
+                    chosenReader = reader;
+                }
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
@@ -73,7 +92,94 @@ public sealed class FortniteReplayProbe
             throw new UnreadableReplayException(failure);
         }
 
-        return Map(chosen, Path.GetFileName(path));
+        return Map(chosen, Path.GetFileName(path), chosenReader);
+    }
+
+    /// <summary>
+    /// Parses on a worker thread while this one watches the reader's own chunk counter. The
+    /// library reads a replay's data in chunks, so a counter that stops is a stuck parser.
+    /// </summary>
+    private FortniteReplay Read(ReplayReader reader, string path)
+    {
+        var progress = ProgressField(reader.GetType());
+        if (progress is null)
+        {
+            return reader.ReadReplay(path);
+        }
+
+        FortniteReplay? replay = null;
+        Exception? failure = null;
+        var finished = 0;
+        var worker = new Thread(() =>
+        {
+            try
+            {
+                replay = reader.ReadReplay(path);
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+            finally
+            {
+                Volatile.Write(ref finished, 1);
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "replay parse",
+        };
+        worker.Start();
+
+        var last = -1;
+        var stable = System.Diagnostics.Stopwatch.StartNew();
+        while (Volatile.Read(ref finished) == 0)
+        {
+            Thread.Sleep(100);
+            if (Volatile.Read(ref finished) != 0)
+            {
+                break;
+            }
+
+            var chunk = progress.GetValue(reader) is int value ? value : -1;
+            if (chunk != last)
+            {
+                last = chunk;
+                stable.Restart();
+            }
+            else if (stable.Elapsed >= StallWindow)
+            {
+                OnStall();
+                return replay!;
+            }
+        }
+
+        worker.Join();
+        if (failure is not null)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+        }
+
+        return replay!;
+    }
+
+    private static System.Reflection.FieldInfo? ProgressField(Type type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            var field = current.GetField(
+                "replayDataIndex",
+                System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.NonPublic
+                    | System.Reflection.BindingFlags.Public
+            );
+            if (field is not null)
+            {
+                return field;
+            }
+        }
+
+        return null;
     }
 
     private static bool HasPlayersAndEvents(FortniteReplay replay)
@@ -84,7 +190,11 @@ public sealed class FortniteReplayProbe
         return players && events;
     }
 
-    private static ParsedReplaySnapshot Map(FortniteReplay replay, string sourceFileName)
+    private static ParsedReplaySnapshot Map(
+        FortniteReplay replay,
+        string sourceFileName,
+        ReplayReader? reader
+    )
     {
         var players = (replay.PlayerData ?? []).Select(MapPlayer).ToArray();
         var idByNumeric = players
@@ -106,6 +216,13 @@ public sealed class FortniteReplayProbe
         }
 
         MarkKillFeedBots(replay, players, playersByNumeric);
+
+        // The game state names the recorder's player state; the parser's own owner flag misses it
+        // whenever that reference resolves late, so resolve it from the same map the parser built.
+        if (reader is not null)
+        {
+            players = RecorderResolver.ApplyRecorder(players, RecorderResolver.EpicIdOf(reader, replay));
+        }
 
         var teams = (replay.TeamData ?? [])
             .Where(t => t.TeamIndex is not null)
@@ -146,8 +263,23 @@ public sealed class FortniteReplayProbe
             players,
             teams,
             events,
-            replay.Info?.LengthInMs is uint ms ? ms / 1000.0 : null
+            replay.Info?.LengthInMs is uint ms ? ms / 1000.0 : null,
+            IsCreative(replay)
         );
+    }
+
+    /// <summary>
+    /// Creative and UEFN matches name themselves in the header's Verse URI; the creative game
+    /// mode carries no playlist or map data at all.
+    /// </summary>
+    private static bool IsCreative(FortniteReplay replay)
+    {
+        var data = replay.Header?.GameSpecificData;
+        return data is not null
+            && data.Any(line =>
+                line.Contains("VKPlayMinimumRoot", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("UEFNMetaData", StringComparison.OrdinalIgnoreCase)
+            );
     }
 
     private static PlayerSnapshot MapPlayer(PlayerData player)

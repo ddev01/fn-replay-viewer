@@ -14,7 +14,9 @@ public sealed record CachedMatch(
     double? DurationSeconds,
     int? Placement,
     int? Elims,
-    bool Failed = false
+    int? TotalPlayers = null,
+    bool Failed = false,
+    int Schema = 0
 );
 
 /// <summary>
@@ -24,6 +26,12 @@ public sealed record CachedMatch(
 /// shortcut: entries for replays deleted from Demos stay in the index until rewritten.
 public sealed class MatchCacheIndex
 {
+    /// <summary>
+    /// Bumped when a saved summary field changes meaning, so entries written by an older build
+    /// are rebuilt from the cached match instead of showing the old value.
+    /// </summary>
+    public const int CurrentSchema = 5;
+
     private const string IndexFileName = "index.json";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -72,6 +80,7 @@ public sealed class MatchCacheIndex
         lock (_gate)
         {
             var you = match.Teams.SelectMany(t => t.Players).FirstOrDefault(p => p.IsYou);
+            var players = match.Teams.Sum(t => t.Players.Count);
             Entries[replay.Name] = new CachedMatch(
                 replay.Name,
                 replay.Length,
@@ -82,9 +91,36 @@ public sealed class MatchCacheIndex
                 match.RecordedAt,
                 match.DurationSeconds,
                 match.YourPlacement ?? match.TeamPlacement,
-                match.OwnerStats?.Eliminations ?? you?.Kills
+                // The roster is what the page shows, so it wins over the event-chunk stats,
+                // which are wrong or missing in some replays.
+                you?.Kills ?? match.OwnerStats?.Eliminations,
+                players > 0 ? players : null,
+                Schema: CurrentSchema
             );
             WriteIndex();
+        }
+    }
+
+    /// <summary>
+    /// The key last saved for a replay file name, whether or not the file still exists. Opening
+    /// a cached replay whose .replay file Fortnite already deleted needs this.
+    /// </summary>
+    public string? CacheKeyFor(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        lock (_gate)
+        {
+            return Entries.TryGetValue(name, out var entry) && !entry.Failed ? entry.CacheKey : null;
+        }
+    }
+
+    /// <summary>Every remembered entry; the caller decides which replays still exist.</summary>
+    public IReadOnlyList<CachedMatch> All()
+    {
+        lock (_gate)
+        {
+            return Entries.Values.ToArray();
         }
     }
 
@@ -106,7 +142,8 @@ public sealed class MatchCacheIndex
                 DurationSeconds: null,
                 Placement: null,
                 Elims: null,
-                Failed: true
+                Failed: true,
+                Schema: CurrentSchema
             );
             WriteIndex();
         }

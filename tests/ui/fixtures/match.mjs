@@ -2,8 +2,8 @@
 // src/ReplayViewer.Core/Match/MatchTypes.cs and src/ReplayViewer/Http/HttpJson.cs
 // (camelCase, string enums, nulls omitted).
 export default {
-  sourceFile:
-    "C:\\Users\\main\\AppData\\Local\\FortniteGame\\Saved\\Demos\\UnrealReplay_2026.10.31-20.15.00.replay",
+  // The server sends Path.GetFileName, not the full path (ReplayParseProcess.cs).
+  sourceFile: "UnrealReplay_2026.10.31-20.15.00.replay",
   scrapedAt: "2026-11-01T09:00:00+00:00",
   playlist: "Playlist_ShowdownAlt_Solo",
   teamSize: 1,

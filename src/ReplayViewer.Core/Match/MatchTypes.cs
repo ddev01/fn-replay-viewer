@@ -25,7 +25,8 @@ public sealed record ParsedReplaySnapshot(
     IReadOnlyList<PlayerSnapshot> Players,
     IReadOnlyList<TeamSnapshot> Teams,
     IReadOnlyList<EventSnapshot> Events,
-    double? DurationSeconds = null
+    double? DurationSeconds = null,
+    bool IsCreative = false
 );
 
 public sealed record OwnerStatsSnapshot(
@@ -101,7 +102,8 @@ public sealed record RosterPlayer(
     bool Disconnected,
     bool Anonymous,
     FillStatus Fill,
-    int? PlayerNumber = null
+    int? PlayerNumber = null,
+    int? Placement = null
 );
 
 public sealed record MatchEvent(
@@ -129,7 +131,9 @@ public sealed record DemoListItem(
     double? DurationSeconds = null,
     int? Placement = null,
     int? Elims = null,
-    bool Cached = false
+    bool Cached = false,
+    int? TotalPlayers = null,
+    bool Unreadable = false
 );
 
 public sealed record ScrapeResult(MatchDocument Match, bool Cached);
@@ -138,9 +142,12 @@ public interface IMatchScraper
 {
     bool BackfillRunning { get; }
 
-    IReadOnlyList<DemoListItem> ListRecent(int take = 20);
+    IReadOnlyList<DemoListItem> ListDemos();
 
     Task<ScrapeResult> ScrapeAsync(string? replayPath, CancellationToken cancellationToken);
 
     void StartBackfill();
+
+    /// <summary>Remembers an owner id the page's "that's me" picker captured.</summary>
+    void RememberOwner(string epicId);
 }

@@ -8,6 +8,15 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        // A parse runs in a child process so a replay the parser stalls on can be killed.
+        if (
+            args.Length >= 3
+            && string.Equals(args[0], ReplayParseProcess.Switch, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return ReplayParseCommand.Run(args[1], args[2], args.Length > 3 ? args[3] : null);
+        }
+
         if (args.Any(a => string.Equals(a, "--install", StringComparison.OrdinalIgnoreCase)))
         {
             try

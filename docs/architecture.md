@@ -69,8 +69,8 @@ Demos folder
 %TEMP%\ReplayViewer\<name>-<guid>.replay
     │  2. copy with FileShare.ReadWrite|Delete  (the game still has it open)
     ▼
-FortniteReplayReader
-    │  3. parse: ParseMode.Full, then Minimal; 60 s timeout
+FortniteReplayReader (child process)
+    │  3. parse in a child process: Full, then Minimal; stops after 2 s without a new chunk
     ▼
 ParsedReplaySnapshot
     │  4. group players into teams, resolve placement, count kills, tag fill
@@ -97,13 +97,33 @@ The copy is deleted in a `finally`; a failed delete is logged and ignored.
 
 ### 3.3 Parsing
 
-`FortniteReplayProbe` runs the parse on a worker task with a 60 s timeout. It tries `ParseMode.Full`
-first and falls back to `Minimal`, keeping the first result that has both players and events.
+`ReplayParseProcess` parses every replay in a child process (`ReplayViewer.exe --parse <replay>
+<out.json>`) and waits at most 60 s for it. Inside that child, `FortniteReplayProbe` tries
+`ParseMode.Full` first and falls back to `Minimal`, keeping the first result with players and events.
+The child watches the parser's own replay-chunk counter: a healthy replay moves to the next chunk
+every few milliseconds, so two seconds without one means a loop, and the child exits. That is why
+an unreadable replay fails in about two seconds instead of waiting out a timeout.
 
-> The timeout ends the *request*, not the parse: the worker keeps running until the process exits.
-> `FortniteReplayReader` has no cancellation path. Documented in `SECURITY.md`.
+The file is then remembered as failed and later opens are refused immediately (422) instead of
+parsing again. Four replays from 13 Nov behave this way in both modes. The child also exits as soon
+as the app does, so a force-closed app cannot leave a parser spinning.
 
-### 3.4 Assembling the match
+> `FortniteReplayReader` has no cancellation token, which is why the parse runs out of process:
+> killing the child is the only way to stop it.
+
+### 3.4 Finding the recorder
+
+Fortnite has to know whose point of view to show, and it does: the game state's
+`RecorderPlayerState` points at the player whose client recorded the replay. The parser keeps that
+id in `GameData.RecorderId` but never exposes the actor→channel→player map it built, and its own
+`IsReplayOwner` flag misses whenever that reference resolves late. `RecorderResolver` reads the map
+and marks the recorder, which agreed with the parser's flag on all 50 replays that set it, where
+guessing from roster position agreed only 4 times.
+
+Creative replays have no game state at all, so they name no recorder; there the learned ids and the
+"That's me" picker take over.
+
+### 3.5 Assembling the match
 
 `MatchAssembler.Build` turns the snapshot into what the UI consumes:
 
@@ -111,7 +131,8 @@ first and falls back to `Minimal`, keeping the first result that has both player
 - team placement comes from the replay's team data, falling back to the best player placement;
 - **kills** come from the parser when it provides them, otherwise they are counted from
   `finish` events where the player is the actor;
-- **isYou** is the player flagged `IsReplayOwner`, matched by epic id;
+- **isYou** is the recorder the game state names, matched by epic id, or the player flagged
+  `IsReplayOwner` when the file has no game state;
 - **fill** is `fill` when a team has more parties than the team size allows, `unknown` when the
   party data is missing;
 - names fall back to `Anonymous N` / `Anonymous` / `Unknown`.
@@ -139,8 +160,9 @@ Everything is on `http://127.0.0.1:47231/`, loopback only, no authentication (se
 | GET | `/` | The UI (`index.html`) |
 | GET | `/*.js`, `*.css`, `*.svg`, `*.ico` | Static files from `wwwroot` |
 | GET | `/api/config` | `{ nameFnPublicUrl }` — drives the NameFN button |
-| GET | `/api/demos` | 20 most recent replays: name, path, size, last write |
+| GET | `/api/demos` | Every replay in the Demos folder, plus cached matches whose file is gone: name, path, size, last write, cached metadata |
 | POST | `/api/scrape` | Body `{ "path": "..." }` (or `{}` for the newest). Returns the match. |
+| POST | `/api/owner` | Body `{ "epicId": "..." }`. Remembers who you are when a replay does not name the owner. |
 | GET | `/api/match` | The last match served by this process, or 404 |
 | GET | `/api/match.json` | Same, as a download (`Content-Disposition: attachment`) |
 | GET | `/api/update` | `{ available, staged, stagedVersion }` — drives the update banner |
@@ -157,7 +179,7 @@ Status codes the UI relies on:
 | 415 | `POST /api/scrape` without `application/json` |
 | 422 | Replay is still live, or could not be read |
 | 500 | Unexpected failure (logged with a stack trace) |
-| 504 | Parse exceeded the 60 s timeout |
+| 504 | The parser ran past the 60 s backstop; the file is refused from then on |
 
 Every response carries `X-Content-Type-Options: nosniff` and
 `Content-Security-Policy: default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`.
@@ -172,9 +194,17 @@ no bundler and no build step, so what you edit is what ships.
 
 - **On load** it reads `/api/match` and renders it; if that 404s it scrapes the newest replay.
   Reloading therefore stays on the same replay and does not re-parse.
-- **The ☰ button** lists recent replays. Picking one scrapes it.
+- **The ☰ button** lists every replay in the Demos folder, plus matches that are still cached after
+  Fortnite deleted the file. Rows page in 20 at a time as the panel scrolls, and show the map or
+  mode, the date and play window, kills and placement. Picking one scrapes it (or reads the cache).
 - **Squads** show `#4` (or `#?` when unplaced) and a red elim count; clicking one opens its
   timeline.
+- **Replays do not always name the owner in the usual flag.** The game state names the recorder's
+  player state, so the app resolves that reference itself (see 3.4). Creative matches have no game
+  state at all: there the app falls back to Epic ids learned from other replays, and a brand-new
+  account whose replays have never named it gets a one-click "That's me" picker.
+- **Creative matches** carry no playlist or map data; the replay header says a match is Creative,
+  so the sidebar and summary show "Creative" as the map.
 - **Tabs**: Game (every knock/finish), You (your events), Team (the selected squad).
   An empty list explains itself rather than showing a blank panel.
 - **Search / Sort / Show bots** filter the roster client-side.
@@ -195,6 +225,8 @@ to ~6 KB.
 - 200 entries max, oldest pruned on write
 - Any failure (missing, corrupt, locked) is a **miss**, never an error
 - Invalidated automatically when the file changes, the app updates, or the parser updates
+- The index remembers each entry's key, so a match stays openable after Fortnite deletes the
+  `.replay` file
 
 The cache is disposable: the installer prunes it on update, and a cold start simply re-parses.
 
@@ -325,7 +357,8 @@ Two tests need a real replay in the Demos folder and skip on CI.
 - **Unsigned.** SmartScreen warns on first install; that is expected.
 - **No owner recorded.** Some replays never set `IsReplayOwner` (typically ones Fortnite did not
   finalise). They open fine, but the You/Team tabs explain that the player cannot be identified.
-- **The parse timeout does not stop the parse** — the thread runs until the process exits.
+- **A replay the parser stalls on cannot be opened.** It is killed after 20 s and refused after
+  that; four replays from 13 Nov behave this way.
 - **No history.** One match in memory at a time; the cache is per-replay, not a database.
 - **Fortnite format drift** is inherited from `FortniteReplayReader`; a game update can break
   parsing until that package updates.

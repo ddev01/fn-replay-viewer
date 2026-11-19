@@ -36,6 +36,7 @@ interface RosterPlayer {
   anonymous: boolean;
   fill: FillStatus;
   playerNumber?: number;
+  placement?: number;
 }
 
 /** MatchTypes.cs: TeamRoster */
@@ -90,6 +91,8 @@ interface DemoListItem {
   placement?: number;
   elims?: number;
   cached?: boolean;
+  totalPlayers?: number;
+  unreadable?: boolean;
 }
 
 /** MatchRoutes.cs GET /api/config */

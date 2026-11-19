@@ -16,6 +16,31 @@ public class ReplayPathsTests
     }
 
     [Fact]
+    public void Accepts_a_bare_file_name_inside_the_folder()
+    {
+        var dir = CreateDir();
+        var path = Path.Combine(dir, "match.replay");
+        File.WriteAllBytes(path, [1]);
+
+        var resolved = ReplayPaths.ResolveInside(dir, "match.replay");
+
+        Assert.Equal(Path.GetFullPath(path), resolved);
+        Directory.Delete(dir, recursive: true);
+    }
+
+    [Fact]
+    public void Rejects_a_bare_file_name_that_climbs_out_of_the_folder()
+    {
+        var dir = CreateDir();
+
+        Assert.Throws<UnauthorizedAccessException>(() =>
+            ReplayPaths.ResolveInside(dir, Path.Combine("..", "match.replay"))
+        );
+
+        Directory.Delete(dir, recursive: true);
+    }
+
+    [Fact]
     public void Rejects_a_path_outside_the_folder()
     {
         var dir = CreateDir();

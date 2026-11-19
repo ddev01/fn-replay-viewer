@@ -22,7 +22,39 @@ public sealed class MatchCacheIndexTests : IDisposable
         Assert.Equal(500, entry.DurationSeconds);
         Assert.Equal(3, entry.Placement);
         Assert.Equal(6, entry.Elims);
+        Assert.Equal(1, entry.TotalPlayers);
         Assert.False(entry.Failed);
+    }
+
+    [Fact]
+    public void Cache_key_survives_the_replay_file()
+    {
+        var index = new MatchCacheIndex(_directory);
+        index.Save(Replay(), "key1", Match());
+
+        Assert.Equal("key1", new MatchCacheIndex(_directory).CacheKeyFor("A.REPLAY"));
+    }
+
+    [Fact]
+    public void The_roster_kills_win_over_the_event_stat()
+    {
+        var index = new MatchCacheIndex(_directory);
+        index.Save(Replay(), "key1", Match() with { OwnerStats = new OwnerStatsSnapshot(1, null, null, null, null, null, null, null, null) });
+
+        // The page shows the roster count, so the sidebar must agree with it.
+        Assert.Equal(6, new MatchCacheIndex(_directory).Get(Replay(), "key1")?.Elims);
+    }
+
+    [Fact]
+    public void Saved_entries_carry_the_current_schema()
+    {
+        var index = new MatchCacheIndex(_directory);
+        index.Save(Replay(), "key1", Match());
+
+        Assert.Equal(
+            MatchCacheIndex.CurrentSchema,
+            new MatchCacheIndex(_directory).Get(Replay(), "key1")?.Schema
+        );
     }
 
     [Fact]
