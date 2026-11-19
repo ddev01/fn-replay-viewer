@@ -120,8 +120,11 @@ id in `GameData.RecorderId` but never exposes the actor→channel→player map i
 and marks the recorder, which agreed with the parser's flag on all 50 replays that set it, where
 guessing from roster position agreed only 4 times.
 
-Creative replays have no game state at all, so they name no recorder; there the learned ids and the
-"That's me" picker take over.
+Creative replays use a different game state class (`Playspace_GameState_C`) that the parser does not
+know, so `RecorderId` stayed empty. `CreativeGameState` registers a `GameState` subclass for that path
+(emitted into an assembly named `ReplayReader.*`, because the parser only scans those) and the same
+lookup then works: on three Creative replays it named the same player each time. There is no
+manual picker or remembered-id fallback; every replay that parses names its recorder.
 
 ### 3.5 Assembling the match
 
@@ -162,7 +165,6 @@ Everything is on `http://127.0.0.1:47231/`, loopback only, no authentication (se
 | GET | `/api/config` | `{ nameFnPublicUrl }` — drives the NameFN button |
 | GET | `/api/demos` | Every replay in the Demos folder, plus cached matches whose file is gone: name, path, size, last write, cached metadata |
 | POST | `/api/scrape` | Body `{ "path": "..." }` (or `{}` for the newest). Returns the match. |
-| POST | `/api/owner` | Body `{ "epicId": "..." }`. Remembers who you are when a replay does not name the owner. |
 | GET | `/api/match` | The last match served by this process, or 404 |
 | GET | `/api/match.json` | Same, as a download (`Content-Disposition: attachment`) |
 | GET | `/api/update` | `{ available, staged, stagedVersion }` — drives the update banner |
@@ -200,9 +202,7 @@ no bundler and no build step, so what you edit is what ships.
 - **Squads** show `#4` (or `#?` when unplaced) and a red elim count; clicking one opens its
   timeline.
 - **Replays do not always name the owner in the usual flag.** The game state names the recorder's
-  player state, so the app resolves that reference itself (see 3.4). Creative matches have no game
-  state at all: there the app falls back to Epic ids learned from other replays, and a brand-new
-  account whose replays have never named it gets a one-click "That's me" picker.
+  player state, so the app resolves that reference itself (see 3.4), for Creative matches too.
 - **Creative matches** carry no playlist or map data; the replay header says a match is Creative,
   so the sidebar and summary show "Creative" as the map.
 - **Tabs**: Game (every knock/finish), You (your events), Team (the selected squad).
@@ -355,8 +355,6 @@ Two tests need a real replay in the Demos folder and skip on CI.
 ## 14. Known limitations
 
 - **Unsigned.** SmartScreen warns on first install; that is expected.
-- **No owner recorded.** Some replays never set `IsReplayOwner` (typically ones Fortnite did not
-  finalise). They open fine, but the You/Team tabs explain that the player cannot be identified.
 - **A replay the parser stalls on cannot be opened.** It is killed after 20 s and refused after
   that; four replays from 13 Nov behave this way.
 - **No history.** One match in memory at a time; the cache is per-replay, not a database.
