@@ -251,38 +251,6 @@ public sealed class MatchRoutesTests : IAsyncLifetime
         );
     }
 
-    [Fact]
-    public async Task Post_owner_remembers_the_picked_id()
-    {
-        using var content = new StringContent(
-            """{"epicId":" 9A869FE1A02E44238C965778C201F9C9 "}""",
-            Encoding.UTF8,
-            "application/json"
-        );
-        using var response = await _server.Client.PostAsync(
-            _server.Url("/api/owner"),
-            content,
-            TestContext.Current.CancellationToken
-        );
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("9A869FE1A02E44238C965778C201F9C9", _scraper.RememberedOwner);
-    }
-
-    [Fact]
-    public async Task Post_owner_without_an_id_is_400()
-    {
-        using var content = new StringContent("""{"epicId":"  "}""", Encoding.UTF8, "application/json");
-        using var response = await _server.Client.PostAsync(
-            _server.Url("/api/owner"),
-            content,
-            TestContext.Current.CancellationToken
-        );
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Null(_scraper.RememberedOwner);
-    }
-
     // shortcut: the last match is a private static cache, so clear it to pin the 404 contract.
     private static void ResetLastMatch() =>
         typeof(MatchRoutes)
@@ -337,15 +305,11 @@ public sealed class MatchRoutesTests : IAsyncLifetime
 
         public string? LastPath { get; private set; }
 
-        public string? RememberedOwner { get; private set; }
-
         public bool BackfillRunning => false;
 
         public IReadOnlyList<DemoListItem> ListDemos() => [];
 
         public void StartBackfill() { }
-
-        public void RememberOwner(string epicId) => RememberedOwner = epicId;
 
         public Task<ScrapeResult> ScrapeAsync(
             string? replayPath,

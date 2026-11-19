@@ -17,7 +17,6 @@ internal sealed class MatchScraper : IMatchScraper
     private static readonly TimeSpan ParseTimeout = TimeSpan.FromSeconds(60);
 
     private readonly MatchCacheIndex _index = MatchCacheIndex.Default;
-    private readonly OwnerIdentities _owners = OwnerIdentities.Default;
     private readonly object _gate = new();
     private Task? _backfill;
 
@@ -85,9 +84,8 @@ internal sealed class MatchScraper : IMatchScraper
     {
         if (!string.IsNullOrWhiteSpace(replayPath) && TryCachedOnly(replayPath, out var cachedOnly))
         {
-            var resolved = WithOwner(cachedOnly!);
             StartBackfill();
-            return new ScrapeResult(resolved, Cached: true);
+            return new ScrapeResult(cachedOnly!, Cached: true);
         }
 
         var path = Resolve(replayPath);
@@ -106,7 +104,6 @@ internal sealed class MatchScraper : IMatchScraper
             && cached is not null
         )
         {
-            cached = WithOwner(cached);
             _index.Save(replay, cacheKey, cached);
             // Opening a cached match is still a user action: catch up any games played since
             // the last backfill.
@@ -136,52 +133,10 @@ internal sealed class MatchScraper : IMatchScraper
             throw;
         }
 
-        var match = WithOwner(parsed);
-        SaveIfUnchanged(replay, cacheKey, match);
+        SaveIfUnchanged(replay, cacheKey, parsed);
         CompactAfterParse();
         StartBackfill();
-        return new ScrapeResult(match, Cached: false);
-    }
-
-    /// <summary>
-    /// Names the owner when the file does not, using the ids learned from replays that did.
-    /// </summary>
-    private MatchDocument WithOwner(MatchDocument match)
-    {
-        var resolved = OwnerResolver.Apply(match, _owners.Ids);
-        _owners.Learn(resolved);
-        return resolved;
-    }
-
-    public void RememberOwner(string epicId)
-    {
-        _owners.Add(epicId);
-        // The id arrives after the sidebar was built, so every cached match that could not name
-        // its owner is re-checked now rather than waiting for a restart.
-        RefreshOwners();
-    }
-
-    private void RefreshOwners()
-    {
-        foreach (var replay in DemoCatalog.ListAll(DemosFolder.DefaultPath).Take(BackfillTake))
-        {
-            var cacheKey = MatchCache.KeyFor(replay.Path);
-            if (
-                cacheKey is null
-                || !MatchCache.TryRead(MatchCache.DefaultRoot, cacheKey, out var cached)
-                || cached is null
-                || cached.Teams.Any(team => team.Players.Any(player => player.IsYou))
-            )
-            {
-                continue;
-            }
-
-            var applied = WithOwner(cached);
-            if (applied.Teams.Any(team => team.Players.Any(player => player.IsYou)))
-            {
-                _index.Save(replay, cacheKey, applied);
-            }
-        }
+        return new ScrapeResult(parsed, Cached: false);
     }
 
     public void StartBackfill()
@@ -204,11 +159,6 @@ internal sealed class MatchScraper : IMatchScraper
         {
             return;
         }
-
-        // Learn who you are from every match already cached, before parsing anything: a replay
-        // whose file never names the owner is resolved from these ids, and the parse order
-        // cannot be relied on to have seen a labelled match first.
-        LearnFromCache(replays);
 
         var parsed = 0;
         foreach (var replay in replays)
@@ -238,11 +188,9 @@ internal sealed class MatchScraper : IMatchScraper
                     continue;
                 }
 
-                var match = WithOwner(
-                    await ReplayParseProcess
-                        .ParseAsync(replay.Path, ParseTimeout, CancellationToken.None)
-                        .ConfigureAwait(false)
-                );
+                var match = await ReplayParseProcess
+                    .ParseAsync(replay.Path, ParseTimeout, CancellationToken.None)
+                    .ConfigureAwait(false);
                 if (SaveIfUnchanged(replay, cacheKey, match))
                 {
                     parsed++;
@@ -263,8 +211,7 @@ internal sealed class MatchScraper : IMatchScraper
 
     /// <summary>
     /// Rebuilds a summary written by an older build from the cached match: the score row reads
-    /// the roster, and the owner may have been learned since. Returns false when only the replay
-    /// file can supply what is missing.
+    /// the roster. Returns false when only the replay file can supply what is missing.
     /// </summary>
     private bool RefreshSummary(DemoListItem replay, string? cacheKey)
     {
@@ -279,44 +226,25 @@ internal sealed class MatchScraper : IMatchScraper
             return false;
         }
 
-        var applied = WithOwner(cached);
-
         // A Creative match has no playlist; only the replay header says a match is Creative.
-        if (applied.Playlist is null && applied.MapName is null)
+        if (cached.Playlist is null && cached.MapName is null)
         {
             return false;
         }
 
-        // No placement in a normal match means the owner is still unknown: the cached summary
+        // No placement in a normal match means the recorder is still unknown: the cached summary
         // does not keep the per-player placement that re-parsing would use.
         if (
-            applied.Playlist is not null
-            && applied.YourPlacement is null
-            && applied.TeamPlacement is null
+            cached.Playlist is not null
+            && cached.YourPlacement is null
+            && cached.TeamPlacement is null
         )
         {
             return false;
         }
 
-        _index.Save(replay, cacheKey, applied);
+        _index.Save(replay, cacheKey, cached);
         return true;
-    }
-
-    /// <summary>Learns the owner from every match already cached, before any file is parsed.</summary>
-    private void LearnFromCache(IReadOnlyList<DemoListItem> replays)
-    {
-        foreach (var replay in replays)
-        {
-            var cacheKey = MatchCache.KeyFor(replay.Path);
-            if (
-                cacheKey is not null
-                && MatchCache.TryRead(MatchCache.DefaultRoot, cacheKey, out var cached)
-                && cached is not null
-            )
-            {
-                _owners.Learn(cached);
-            }
-        }
     }
 
     /// <summary>

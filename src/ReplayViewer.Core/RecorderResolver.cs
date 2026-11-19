@@ -19,7 +19,7 @@ public static class RecorderResolver
 
     /// <summary>
     /// Reads the recorder's epic id out of the parser's own actor→channel→player map. Returns
-    /// null when the replay has no game state (Creative) or the map is not where it is expected.
+    /// null when the replay names no recorder or the map is not where it is expected.
     /// </summary>
     public static string? EpicIdOf(object reader, FortniteReplay replay)
     {

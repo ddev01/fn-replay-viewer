@@ -147,7 +147,4 @@ public interface IMatchScraper
     Task<ScrapeResult> ScrapeAsync(string? replayPath, CancellationToken cancellationToken);
 
     void StartBackfill();
-
-    /// <summary>Remembers an owner id the page's "that's me" picker captured.</summary>
-    void RememberOwner(string epicId);
 }

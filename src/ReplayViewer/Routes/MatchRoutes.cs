@@ -93,56 +93,6 @@ internal sealed class MatchRoutes : IHttpRoute
                 return;
             }
 
-            if (
-                string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase)
-                && path == "/api/owner"
-            )
-            {
-                var ownerContentType = request.ContentType ?? "";
-                if (
-                    !ownerContentType.StartsWith(
-                        "application/json",
-                        StringComparison.OrdinalIgnoreCase
-                    )
-                )
-                {
-                    await HttpJson.WriteErrorAsync(response, 415, "Expected JSON.").ConfigureAwait(false);
-                    return;
-                }
-
-                var ownerBody = await ReadBodyAsync(request, cancellationToken).ConfigureAwait(false);
-                if (ownerBody is null)
-                {
-                    await HttpJson.WriteErrorAsync(response, 413, "Request body is too large.")
-                        .ConfigureAwait(false);
-                    return;
-                }
-
-                string? epicId = null;
-                if (!string.IsNullOrWhiteSpace(ownerBody))
-                {
-                    using var doc = JsonDocument.Parse(ownerBody);
-                    if (
-                        doc.RootElement.TryGetProperty("epicId", out var idProp)
-                        && idProp.ValueKind == JsonValueKind.String
-                    )
-                    {
-                        epicId = idProp.GetString()?.Trim();
-                    }
-                }
-
-                if (string.IsNullOrWhiteSpace(epicId) || epicId.Length > 64)
-                {
-                    await HttpJson.WriteErrorAsync(response, 400, "An epicId is required.")
-                        .ConfigureAwait(false);
-                    return;
-                }
-
-                _scraper.RememberOwner(epicId);
-                await HttpJson.WriteJsonAsync(response, new { remembered = epicId }).ConfigureAwait(false);
-                return;
-            }
-
             if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase) && path == "/api/demos")
             {
                 // The page only asks for the list while it is visible and focused, so this is
