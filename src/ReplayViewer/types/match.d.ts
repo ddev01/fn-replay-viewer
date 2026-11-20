@@ -4,8 +4,9 @@
 // src/ReplayViewer/Http/HttpJson.cs (camelCase names, JsonStringEnumConverter with
 // camelCase policy, nulls omitted).
 //
-// Hand-maintained: update this file whenever those records change. Properties are
-// optional where the C# type is nullable, because null properties are not written.
+// Hand-maintained, but enforced: tests/ReplayViewer.Tests/ContractTests.cs fails when a record
+// and its interface here disagree on property names or optionality. Properties are optional
+// where the C# type is nullable, because null properties are not written.
 
 type EventKind = "knock" | "finish" | "selfElim" | "revive";
 
@@ -19,9 +20,6 @@ interface OwnerStats {
   assists?: number;
   revives?: number;
   damageTaken?: number;
-  wood?: number;
-  stone?: number;
-  metal?: number;
 }
 
 /** MatchTypes.cs: RosterPlayer */
@@ -90,9 +88,27 @@ interface DemoListItem {
   durationSeconds?: number;
   placement?: number;
   elims?: number;
-  cached?: boolean;
+  cached: boolean;
   totalPlayers?: number;
-  unreadable?: boolean;
+  unreadable: boolean;
+}
+
+/** MatchRoutes.cs GET /api/demos */
+interface DemosResponse {
+  demos: DemoListItem[];
+  backfill: boolean;
+}
+
+/** MatchRoutes.cs GET /api/update */
+interface UpdateInfo {
+  available?: string;
+  staged: boolean;
+  stagedVersion?: string;
+}
+
+/** HttpJson.cs WriteErrorAsync: every non-2xx JSON body */
+interface ApiError {
+  error: string;
 }
 
 /** MatchRoutes.cs GET /api/config */
