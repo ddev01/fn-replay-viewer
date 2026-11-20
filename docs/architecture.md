@@ -201,7 +201,11 @@ Static files are served with `Cache-Control: no-store`.
 
 ## 5. The UI
 
-`wwwroot` is served as-is: `index.html`, `app.js`, `app.css`, and SVG icons. There is
+`wwwroot` is served as-is, no bundler: `index.html`, `app.css`, SVG icons and native ES modules
+(`<script type="module">`, allowed by the `default-src 'self'` CSP). `model.js` and `format.js` are
+pure (no DOM, no page state) and unit-tested under Node (`npm run test:unit`); `view.js` renders,
+`demos.js` owns the Demos panel, `state.js` holds the one mutable object, and `app.js` wires the
+page and scrapes. There is
 no bundler and no build step, so what you edit is what ships.
 
 - **On load** it reads `/api/match` and renders it; if that 404s it scrapes the newest replay.
@@ -251,11 +255,18 @@ The cache is disposable: if it is lost, a cold start simply re-parses.
 3. **Stage, silently.** The `.zip` asset and its detached `.sig` are downloaded, the signature is
    verified against a key embedded in the app, the GitHub digest is checked too, and the payload is
    extracted to `%TEMP%\ReplayViewerPending`. Nothing is installed and nothing restarts.
-4. **Apply on the next launch.** `Program.Main` sees the staged payload, runs
-   `ReplayViewer.exe --install` from it, and the installer relaunches the new version. Updating
-   therefore never interrupts a session.
-5. **Apply now** from the web banner (`POST /api/update/apply`) or the tray menu, which runs the
-   same chain immediately.
+4. **Apply on the next launch.** `Program.Main` sees the staged payload and starts it as
+   `ReplayViewer.exe --install --relaunch --wait-pid <pid>`. The payload waits for the running app
+   to exit, installs, and relaunches the installed exe. Updating therefore never interrupts a
+   session.
+5. **Apply now** from the web banner (`POST /api/update/apply`) or the tray menu, which starts the
+   same payload immediately.
+
+The install is all-or-nothing (`InstallPayload.Sync`): every file is copied next to its target as
+`.new`, then swapped in with the old file kept as `.old`. If any step fails, everything is put
+back, and the installed app is relaunched either way, so a failed update leaves the old version
+running. The next update check stages and retries it. The Inno Setup installer runs the same
+`--install` without `--relaunch`.
 
 ### Signature
 
