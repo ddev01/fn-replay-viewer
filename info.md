@@ -7,7 +7,7 @@ over loopback.
 
 - **Repo:** https://github.com/ddev01/fn-replay-viewer
 - **Releases:** https://github.com/ddev01/fn-replay-viewer/releases
-- **Version:** 1.0.10 (`Directory.Build.props`)
+- **Version:** 1.0.11 (`Directory.Build.props`)
 - **Status:** hobby project, unsigned builds, latest release only supported
 - **Deep dive:** [docs/architecture.md](docs/architecture.md)
 
