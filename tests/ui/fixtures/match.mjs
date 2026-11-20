@@ -18,9 +18,6 @@ export default {
     assists: 1,
     revives: 1,
     damageTaken: 455,
-    wood: 120,
-    stone: 60,
-    metal: 30,
   },
   teams: [
     {

@@ -10,7 +10,7 @@ import match from "./fixtures/match.mjs";
 
 const fixtures = {
   "/api/config": config,
-  "/api/demos": demos,
+  "/api/demos": { demos, backfill: false },
   "/api/match": match,
 };
 
@@ -347,4 +347,42 @@ test("has no serious or critical accessibility violations", async ({ page }) => 
     .filter((v) => v.impact === "serious" || v.impact === "critical")
     .flatMap((v) => v.nodes.map((n) => `${v.id} ${n.target.join(" ")}: ${n.failureSummary}`));
   expect(blocking).toEqual([]);
+});
+
+test("a replay can be opened from the keyboard and Escape closes the demos panel", async ({ page }) => {
+  await page.route("**/api/scrape", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(match) })
+  );
+  const toggle = page.getByRole("button", { name: "Demos" });
+  await toggle.focus();
+  await page.keyboard.press("Enter");
+
+  await expect(page.locator("#demos-panel")).toBeVisible();
+  await expect(page.locator("#close-demos")).toBeFocused();
+  await expect(page.locator("main")).toHaveJSProperty("inert", true);
+
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#demos-panel")).toBeHidden();
+  await expect(toggle).toBeFocused();
+
+  await toggle.press("Enter");
+  await page.locator("#demos .demo-open").first().focus();
+  const scraped = page.waitForRequest("**/api/scrape");
+  await page.keyboard.press("Enter");
+  await scraped;
+});
+
+test("tabs and sort buttons expose their state to assistive tech", async ({ page }) => {
+  await expect(page.locator('.tabs button[data-tab="you"]')).toHaveAttribute("aria-pressed", "true");
+  await page.locator('.tabs button[data-tab="game"]').click();
+  await expect(page.locator('.tabs button[data-tab="game"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('.tabs button[data-tab="you"]')).toHaveAttribute("aria-pressed", "false");
+  await page.locator("#sort-kills").click();
+  await expect(page.locator("#sort-kills")).toHaveAttribute("aria-pressed", "true");
+});
+
+test("squads and players are real buttons, and errors are announced", async ({ page }) => {
+  await expect(page.locator("#roster .team").first().getByRole("button").first()).toBeVisible();
+  await expect(page.locator("#roster .pname").first()).toHaveJSProperty("tagName", "BUTTON");
+  await expect(page.locator("#status")).toHaveAttribute("role", "status");
 });

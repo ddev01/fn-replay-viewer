@@ -8,9 +8,9 @@
   </head>
   <body>
     <h1 class="sr-only">Replay Viewer</h1>
-    <p id="status" class="status" hidden></p>
+    <p id="status" class="status" role="status" hidden></p>
     <div id="demos-backdrop" class="demos-backdrop" hidden></div>
-    <aside id="demos-panel" class="demos-panel" hidden>
+    <aside id="demos-panel" class="demos-panel" role="dialog" aria-modal="true" aria-label="Demos" hidden>
       <div class="demos-head">
         <h2>Demos</h2>
         <button id="close-demos" type="button" class="ghost">Close</button>
@@ -56,8 +56,8 @@
         </label>
         <div class="sort" role="group" aria-label="Sort teams">
           <span class="sort-label">Sort teams</span>
-          <button type="button" id="sort-placement" class="active">Placement</button>
-          <button type="button" id="sort-kills">Kills</button>
+          <button type="button" id="sort-placement" class="active" aria-pressed="true">Placement</button>
+          <button type="button" id="sort-kills" aria-pressed="false">Kills</button>
         </div>
         <label class="toggle">
           <input type="checkbox" id="show-bots" />
@@ -66,10 +66,10 @@
       </div>
       <div id="roster" class="roster"></div>
       <section class="timelines" id="timeline-section">
-        <div class="tabs">
-          <button type="button" data-tab="game">Game</button>
-          <button type="button" data-tab="you" class="active">You</button>
-          <button type="button" data-tab="team">Team</button>
+        <div class="tabs" role="group" aria-label="Timeline view">
+          <button type="button" data-tab="game" aria-pressed="false">Game</button>
+          <button type="button" data-tab="you" class="active" aria-pressed="true">You</button>
+          <button type="button" data-tab="team" aria-pressed="false">Team</button>
         </div>
         <div class="filters">
           <label><input type="checkbox" id="hide-bots" checked /> Hide bots in timeline</label>

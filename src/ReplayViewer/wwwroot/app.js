@@ -75,6 +75,21 @@ function setReplayUrl(name, push) {
 }
 
 /**
+ * Active state must reach assistive tech, not only the stylesheet.
+ * @param {Element} el
+ * @param {boolean} on
+ */
+function setPressed(el, on) {
+  el.classList.toggle("active", on);
+  el.setAttribute("aria-pressed", String(on));
+}
+
+/** @returns {ScrollBehavior} */
+function scrollBehavior() {
+  return matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+}
+
+/**
  * @param {string} id
  * @returns {HTMLElement}
  */
@@ -187,12 +202,12 @@ function selectOnlyPlayer(team, playerId) {
 function openTeamTimeline() {
   state.tab = "team";
   tabButtons().forEach((b) => {
-    b.classList.toggle("active", b.dataset.tab === "team");
+    setPressed(b, b.dataset.tab === "team");
   });
   render();
   requestAnimationFrame(() => {
     document.getElementById("timeline-section")?.scrollIntoView({
-      behavior: "smooth",
+      behavior: scrollBehavior(),
       block: "start",
     });
   });
@@ -335,14 +350,20 @@ function showStatus(text, autoHideMs) {
  * @param {boolean} open
  */
 function setDemosOpen(open) {
+  const wasOpen = state.demosOpen;
   state.demosOpen = open;
   $("demos-panel").hidden = !open;
   $("demos-backdrop").hidden = !open;
   $("toggle-demos").setAttribute("aria-expanded", String(open));
+  // The panel is modal: keep the page behind it out of the tab order and away from readers.
+  /** @type {HTMLElement} */ (document.querySelector("main")).inert = open;
   if (open) {
     loadDemos();
     // The rows rendered while the panel was hidden could not measure it.
     fillDemos();
+    $("close-demos").focus();
+  } else if (wasOpen) {
+    $("toggle-demos").focus();
   }
 }
 
@@ -500,7 +521,7 @@ function highlightPlayer(teamIndex, playerId) {
   if (teamIndex != null && teamIndex !== "") {
     const el = document.getElementById(`team-${teamIndex}`);
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
       el.classList.add("flash");
       setTimeout(() => el.classList.remove("flash"), 1400);
     }
@@ -510,7 +531,7 @@ function highlightPlayer(teamIndex, playerId) {
     const row = document.querySelector(`[data-player="${cssEscape(String(playerId).toLowerCase())}"]`);
     if (row) {
       row.classList.add("highlight");
-      row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      row.scrollIntoView({ behavior: scrollBehavior(), block: "nearest" });
     }
   }
 }
@@ -630,8 +651,19 @@ function demoRow(demo) {
   if (demo.unreadable) li.classList.add("unreadable");
   const row = document.createElement("div");
   row.className = "demo-row";
-  const title = document.createElement("span");
-  title.className = "demo-title";
+  // A button, not a clickable li: it is what makes a replay reachable from the keyboard. Its
+  // click bubbles to the li handler below, so there is still one code path.
+  /** @type {HTMLElement} */
+  let title;
+  if (demo.unreadable) {
+    title = document.createElement("span");
+  } else {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.classList.add("reset-btn", "demo-open");
+    title = button;
+  }
+  title.classList.add("demo-title");
   title.textContent = demoTitle(demo);
   row.append(title);
   if (demo.unreadable) row.append(demoHelp());
@@ -720,9 +752,10 @@ async function loadDemos() {
   clearTimeout(state.demosTimer);
   try {
     const res = await fetch("/api/demos");
+    /** @type {DemosResponse} */
     const data = await res.json();
-    state.demos = Array.isArray(data) ? data : data.demos || [];
-    state.backfill = Boolean(data.backfill);
+    state.demos = data.demos;
+    state.backfill = data.backfill;
     renderDemos();
   } catch (err) {
     showStatus(String(err));
@@ -847,8 +880,8 @@ function render() {
     </div>
   `;
 
-  $("sort-placement").classList.toggle("active", state.sort === "placement");
-  $("sort-kills").classList.toggle("active", state.sort === "kills");
+  setPressed($("sort-placement"), state.sort === "placement");
+  setPressed($("sort-kills"), state.sort === "kills");
 
   const q = $input("search").value.trim().toLowerCase();
   const showBots = $input("show-bots").checked;
@@ -869,8 +902,10 @@ function render() {
     const place = team.placement != null ? `#${team.placement}` : "#?";
     card.innerHTML = `
       <h3 class="squad-head">
-        <span class="place">${place}</span>
-        <span class="team-elims">${themedIcon("kill.svg", "Elims", "kill")}${teamKills(team)}</span>
+        <button type="button" class="reset-btn squad-open" aria-label="Squad ${place}, ${teamKills(team)} eliminations. Show timeline">
+          <span class="place">${place}</span>
+          <span class="team-elims">${themedIcon("kill.svg", "Elims", "kill")}${teamKills(team)}</span>
+        </button>
       </h3>
     `;
     card.querySelector(".squad-head")?.addEventListener("click", () => {
@@ -886,7 +921,7 @@ function render() {
       row.innerHTML = `
         <div>
           <div class="pname-row">
-            <span class="pname">${escapeHtml(p.name)}</span>
+            <button type="button" class="reset-btn pname">${escapeHtml(p.name)}</button>
           </div>
           <div class="badges">
             ${platformMarkup(p.platform)}
@@ -1124,12 +1159,15 @@ tabButtons().forEach((btn) => {
     const tab = btn.dataset.tab;
     if (tab === "game" || tab === "you" || tab === "team") state.tab = tab;
     tabButtons().forEach((b) => {
-      b.classList.toggle("active", b === btn);
+      setPressed(b, b === btn);
     });
     render();
   });
 });
 
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && state.demosOpen) setDemosOpen(false);
+});
 window.addEventListener("focus", () => refreshDemos(true));
 document.addEventListener("visibilitychange", () => refreshDemos(true));
 document.addEventListener("mousemove", () => refreshDemos(false));

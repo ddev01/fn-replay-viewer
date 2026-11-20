@@ -1,4 +1,4 @@
-// GET /api/demos payload, hand-written from
+// The `demos` array of the GET /api/demos payload ({ demos, backfill }), hand-written from
 // src/ReplayViewer.Core/Match/MatchTypes.cs and src/ReplayViewer/Http/HttpJson.cs
 // (camelCase, nulls omitted).
 export default [
