@@ -38,6 +38,9 @@ fi
 
 echo "downloading artifacts from run $run"
 gh run download "$run" --repo "$repo" -n release-assets -D "$work"
+# upload-artifact keeps the installer/ folder; the release wants the files flat.
+find "$work" -mindepth 2 -type f -exec mv -t "$work" {} +
+find "$work" -mindepth 1 -type d -empty -delete
 
 pubkey="$pubdir/public.pem"
 openssl ec -in "$key" -pubout -out "$pubkey" 2>/dev/null
