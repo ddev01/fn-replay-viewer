@@ -139,7 +139,7 @@ pwsh -File scripts/verify.ps1     # locked restore, build, test, format, lint, t
 pwsh -File scripts/pack.ps1       # release artifacts
 ```
 
-`verify.ps1` flags: `-Coverage`, `-Pack`, `-SkipFrontend`, `-Branch <name>`, `-Force`.
+`verify.ps1` flags: `-Pack`, `-SkipFrontend`. The coverage gate always runs.
 Pack writes:
 
 - `artifacts/installer/ReplayViewer-Setup-<version>.exe`

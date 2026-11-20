@@ -1,10 +1,7 @@
 # Runs the same checks CI runs. Invoke from any checkout; it locates the repo root itself.
 param(
-    [string]$Branch = "",
     [switch]$SkipFrontend,
-    [switch]$Coverage,
-    [switch]$Pack,
-    [switch]$Force
+    [switch]$Pack
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,44 +21,25 @@ function Step([string]$name, [scriptblock]$body) {
     if ($LASTEXITCODE -ne 0) { throw "$name failed (exit $LASTEXITCODE)" }
 }
 
-if ($Branch) {
-    Write-Host "==> checkout $Branch" -ForegroundColor Cyan
-    # -Branch discards local state, so refuse to do it to a checkout with work in progress.
-    if (-not $Force -and (git status --porcelain)) {
-        throw "$root has uncommitted changes; re-run with -Force to discard them"
-    }
-
-    git fetch origin --prune
-    if ($LASTEXITCODE -ne 0) { throw "git fetch failed" }
-    # This clone is a disposable verification target: drop stray edits and untracked
-    # files so a branch that adds a file cannot abort the switch. Ignored paths
-    # (bin/obj/node_modules/artifacts) are left alone.
-    git clean -fdq
-    git checkout -f -B $Branch "origin/$Branch"
-    if ($LASTEXITCODE -ne 0) { throw "git checkout $Branch failed" }
-}
-
 Step "restore (locked)" { dotnet restore ReplayViewer.sln --locked-mode }
 Step "build" { dotnet build ReplayViewer.sln -c Release --nologo -warnaserror --no-restore }
-Step "test" { dotnet test ReplayViewer.sln -c Release --nologo --no-build --blame-hang-timeout 5m }
-Step "format" { dotnet format ReplayViewer.sln --verify-no-changes --no-restore }
-
-if ($Coverage) {
-    Step "coverage" {
-        Remove-Item -Recurse -Force artifacts/coverage -ErrorAction SilentlyContinue
-        dotnet test ReplayViewer.sln -c Release --nologo --no-build --collect:"XPlat Code Coverage" --results-directory artifacts/coverage
-    }
-    # Floor is set from a clean CI run (65.0% line / 63.2% branch), two points down.
-    # A local run reads ~67% / 66%: the two tests in FortniteReplayProbeTests need a real
-    # .replay in the Demos folder and skip on CI, which accounts for the difference.
-    # Each threshold is its own argument, with no leading dash: "-key" is silently ignored,
-    # and "lineCoverage=60;branchCoverage=60" is read as one int and fails to parse.
-    Step "coverage gate" {
-        dotnet tool restore
-        dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "minimumCoverageThresholds:lineCoverage=63" "minimumCoverageThresholds:branchCoverage=61"
-        Get-Content artifacts/coverage/report/Summary.txt
-    }
+# Tests run once, with coverage, and the gate always applies: CI enforces it, so a local run that
+# skipped it could pass here and fail there.
+Step "test" {
+    Remove-Item -Recurse -Force artifacts/coverage -ErrorAction SilentlyContinue
+    dotnet test ReplayViewer.sln -c Release --nologo --no-build --blame-hang-timeout 5m --collect:"XPlat Code Coverage" --results-directory artifacts/coverage
 }
+# Floor is set from a clean CI run (65.0% line / 63.2% branch), two points down.
+# A local run reads higher: the two tests in FortniteReplayProbeTests need a real .replay in the
+# Demos folder and skip on CI, which accounts for the difference.
+# Each threshold is its own argument, with no leading dash: "-key" is silently ignored,
+# and "lineCoverage=60;branchCoverage=60" is read as one int and fails to parse.
+Step "coverage gate" {
+    dotnet tool restore
+    dotnet tool run reportgenerator "-reports:artifacts/coverage/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage/report" "-reporttypes:TextSummary" "minimumCoverageThresholds:lineCoverage=63" "minimumCoverageThresholds:branchCoverage=61"
+    Get-Content artifacts/coverage/report/Summary.txt
+}
+Step "format" { dotnet format ReplayViewer.sln --verify-no-changes --no-restore }
 
 $hasFrontend = -not $SkipFrontend -and (Test-Path (Join-Path $root "package.json"))
 if ($hasFrontend) {
@@ -69,6 +47,7 @@ if ($hasFrontend) {
     Step "playwright browsers" { npx --no-install playwright install chromium }
     Step "lint" { npm run lint }
     Step "typecheck" { npm run typecheck }
+    Step "unit tests" { npm run test:unit }
     Step "ui tests" { npm run test:ui }
 }
 
