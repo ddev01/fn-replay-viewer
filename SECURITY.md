@@ -21,23 +21,28 @@ The app runs as the signed-in user, with no Administrator rights, and never leav
 except for the update check. Interesting areas, in plain language:
 
 - **Replay file parser.** `.replay` files from the Demos folder are untrusted input from disk,
-  parsed in-process by `FortniteReplayReader` (`src/ReplayViewer.Core/FortniteReplayProbe.cs`).
-  A 60-second timeout ends the *request*, not the parse: the parsing thread keeps running until
-  the process exits, so a crafted file can hold one core busy. A crafted file that crashes the
-  process, hangs it, or escapes the parser into the host is in scope.
+  parsed by `FortniteReplayReader` in a **child process** (`ReplayParseProcess`,
+  `src/ReplayViewer.Core/FortniteReplayProbe.cs`). The child runs at below-normal priority with a
+  2 GB heap limit, is killed after 60 seconds, ends itself after 2 seconds without parser
+  progress, and exits if the app does. Files over 512 MB are refused. A crafted file that
+  crashes or hangs the *app*, escapes the parser into the host, or defeats those limits is in
+  scope.
 - **Loopback HTTP server.** The UI and JSON API are served on `http://127.0.0.1:47231/`
   (`src/ReplayViewer.Core/AppPaths.cs`, `src/ReplayViewer/Routes/MatchRoutes.cs`). It has **no
-  authentication and no origin check**, so any process on the machine — including a browser page
-  that can reach loopback — can call it. Request handling that goes beyond reading replays under
-  the Demos folder, or responses that leak data to another local process, is in scope.
+  authentication**, so any process on the machine can call it. Browser pages cannot: requests
+  whose `Host` is not `127.0.0.1` or `localhost` on the listening port are refused (421, which
+  stops DNS rebinding), and `/api/*` calls carrying a cross-site `Sec-Fetch-Site` or a foreign
+  `Origin` are refused (403). Request handling that goes beyond reading replays under the Demos
+  folder, a way around those two checks, or responses that leak data to another local process,
+  is in scope.
 - **Self-updater.** It polls
-  `https://api.github.com/repos/ddev01/fn-replay-viewer/releases/latest`, downloads the release zip,
-  and checks it against the SHA-256 in the asset's `digest` field
-  (`src/ReplayViewer/Hosting/UpdateChecker.cs`). Nothing installs without the user clicking the
-  update menu item. Note the known limit: when GitHub omits a `digest`, or reports an algorithm
-  other than SHA-256, verification is skipped and the zip is extracted unverified — the update
-  trusts that the release on GitHub is genuine. Ways to make that verification stronger, or to
-  install something other than the verified release asset, are in scope.
+  `https://api.github.com/repos/ddev01/fn-replay-viewer/releases/latest`, downloads the release zip
+  and its detached ECDSA P-256 signature, and verifies the signature against a key embedded in the
+  app. An update without a valid signature is refused (fail closed). The GitHub `digest` is also
+  checked when present, and the extracted exe's version must match the release tag
+  (`src/ReplayViewer/Hosting/UpdateChecker.cs`). The update is staged silently and installs on
+  the next launch or when the user asks. Ways to install something other than a release signed by
+  the maintainer, or to downgrade, are in scope.
 - **Installer payload sync.** `src/ReplayViewer.Core/InstallPayload.cs` copies a payload over
   `%LocalAppData%\ReplayViewer` and deletes files the payload no longer contains (skipping `unins*`
   and the preserved user-data directories). Deleting or overwriting something outside that folder,

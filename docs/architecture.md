@@ -66,11 +66,11 @@ is plain HTML/CSS/JS that ships as content files.
 Demos folder
     │  1. pick the replay (newest stable, or the one you clicked)
     ▼
-%TEMP%\ReplayViewer\<name>-<guid>.replay
-    │  2. copy with FileShare.ReadWrite|Delete  (the game still has it open)
+(read in place, FileShare.ReadWrite|Delete: the game may still have it open)
+    │  2. a child process opens it and hands it to FortniteReplayReader
     ▼
 FortniteReplayReader (child process)
-    │  3. parse in a child process: Full, then Minimal; stops after 2 s without a new chunk
+    │  3. parse in the child: Full, then Minimal; stops after 2 s without a new chunk
     ▼
 ParsedReplaySnapshot
     │  4. group players into teams, resolve placement, count kills, tag fill
@@ -89,24 +89,30 @@ the size to stop changing for 3 s. If it is still growing, the caller gets a 409
 A replay you pick from the menu is resolved by `ReplayPaths.ResolveInside`, which requires the
 path to be inside the Demos folder and to end in `.replay`.
 
-### 3.2 Copying
+### 3.2 Reading
 
-`ReplayFileAccess.CopyWithReadWriteShare` copies to `%TEMP%` opening the source with
-`FileShare.ReadWrite | FileShare.Delete`, because Fortnite keeps the file open while recording.
-The copy is deleted in a `finally`; a failed delete is logged and ignored.
+`ReplayFileAccess.OpenSharedRead` opens the replay with `FileShare.ReadWrite | FileShare.Delete`
+because Fortnite keeps the file open while recording, and the parser reads that stream directly.
+There is no temp copy: an earlier design copied the file first and leaked the copy whenever the
+parser was killed (`ReplayFileAccess.SweepLegacyCopies` removes what old builds left behind). A
+file that changes during the parse is not cached (`MatchScraper.SaveIfUnchanged`). Files over
+512 MB are refused before parsing.
 
 ### 3.3 Parsing
 
 `ReplayParseProcess` parses every replay in a child process (`ReplayViewer.exe --parse <replay>
-<out.json>`) and waits at most 60 s for it. Inside that child, `FortniteReplayProbe` tries
+<out.json>`), at below-normal priority with a 2 GB heap limit, and waits at most 60 s for it. The
+parent owns that deadline; the child has no timer of its own. Inside that child, `FortniteReplayProbe` tries
 `ParseMode.Full` first and falls back to `Minimal`, keeping the first result with players and events.
 The child watches the parser's own replay-chunk counter: a healthy replay moves to the next chunk
 every few milliseconds, so two seconds without one means a loop, and the child exits. That is why
 an unreadable replay fails in about two seconds instead of waiting out a timeout.
 
-The file is then remembered as failed and later opens are refused immediately (422) instead of
-parsing again. Four replays from 13 Nov behave this way in both modes. The child also exits as soon
-as the app does, so a force-closed app cannot leave a parser spinning.
+A stall or a timeout is remembered as a permanent failure for that exact file (size and write
+time) and the build that failed, so later opens are refused immediately (422) instead of parsing
+again. Any other failure (a locked file, a killed child) is not remembered: the foreground retries
+on the next click and backfill waits 30 minutes. Four replays from 13 Nov stall in both modes. The
+child also exits as soon as the app does, so a force-closed app cannot leave a parser spinning.
 
 > `FortniteReplayReader` has no cancellation token, which is why the parse runs out of process:
 > killing the child is the only way to stop it.
@@ -143,7 +149,7 @@ manual picker or remembered-id fallback; every replay that parses names its reco
 `EventFixup.Clean` orders events by time and drops near-duplicates within 1.5 s (the same knock is
 sometimes recorded twice).
 
-### 3.5 Event kinds
+### 3.6 Event kinds
 
 | Kind | Meaning |
 |---|---|
@@ -157,13 +163,15 @@ sometimes recorded twice).
 ## 4. HTTP API
 
 Everything is on `http://127.0.0.1:47231/`, loopback only, no authentication (see Security).
+Every request must carry a `Host` of `127.0.0.1:47231` or `localhost:47231` (else 421), and `/api/*`
+refuses cross-site browser requests (403).
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/` | The UI (`index.html`) |
 | GET | `/*.js`, `*.css`, `*.svg`, `*.ico` | Static files from `wwwroot` |
 | GET | `/api/config` | `{ nameFnPublicUrl }` — drives the NameFN button |
-| GET | `/api/demos` | Every replay in the Demos folder, plus cached matches whose file is gone: name, path, size, last write, cached metadata |
+| GET | `/api/demos` | `{ demos, backfill }`: every replay in the Demos folder, plus cached matches whose file is gone: name, path, size, last write, cached metadata |
 | POST | `/api/scrape` | Body `{ "path": "..." }` (or `{}` for the newest). Returns the match. |
 | GET | `/api/match` | The last match served by this process, or 404 |
 | GET | `/api/match.json` | Same, as a download (`Content-Disposition: attachment`) |
@@ -174,7 +182,7 @@ Status codes the UI relies on:
 
 | Code | When |
 |---|---|
-| 400 | Invalid JSON body |
+| 400 | Invalid JSON, a body that is not an object, or a path that is not a `.replay` inside the Demos folder |
 | 404 | No match yet, or no such file |
 | 409 | A scrape is already running, or the newest replay is still being written |
 | 413 | Body over 64 KB |
@@ -182,6 +190,8 @@ Status codes the UI relies on:
 | 422 | Replay is still live, or could not be read |
 | 500 | Unexpected failure (logged with a stack trace) |
 | 504 | The parser ran past the 60 s backstop; the file is refused from then on |
+| 421 | `Host` header is not this app's own address |
+| 403 | `/api/*` request from another site (`Sec-Fetch-Site`, `Origin`) |
 
 Every response carries `X-Content-Type-Options: nosniff` and
 `Content-Security-Policy: default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`.
@@ -191,7 +201,7 @@ Static files are served with `Cache-Control: no-store`.
 
 ## 5. The UI
 
-`wwwroot` is served as-is: `index.html`, `app.js` (~830 lines), `app.css`, and SVG icons. There is
+`wwwroot` is served as-is: `index.html`, `app.js`, `app.css`, and SVG icons. There is
 no bundler and no build step, so what you edit is what ships.
 
 - **On load** it reads `/api/match` and renders it; if that 404s it scrapes the newest replay.
@@ -221,14 +231,15 @@ Parsing a 17-21 MB replay takes 0.5-2 s; the assembled match is ~49 KB of JSON, 
 to ~6 KB.
 
 - Location: `%LocalAppData%\ReplayViewer\cache\<key>.json.br`
-- Key: SHA-256 of `format version | app version | parser version | full path | size | last-write ticks`
+- Key: SHA-256 of `format version | Core assembly id | parser version | full path | size | last-write ticks`. The Core assembly id changes when parsing or assembly code changes, not on a UI-only release.
 - 200 entries max, oldest pruned on write
 - Any failure (missing, corrupt, locked) is a **miss**, never an error
-- Invalidated automatically when the file changes, the app updates, or the parser updates
+- Invalidated automatically when the file changes or the parsing code or parser package changes
+- Survives app updates that do not touch parsing: `cache/` and `cache-index/` are preserved by the installer sync
 - The index remembers each entry's key, so a match stays openable after Fortnite deletes the
   `.replay` file
 
-The cache is disposable: the installer prunes it on update, and a cold start simply re-parses.
+The cache is disposable: if it is lost, a cold start simply re-parses.
 
 ---
 
@@ -264,7 +275,7 @@ publish a matching pair. The signature proves the maintainer produced it.
 | Privileges | none — `PrivilegesRequired=lowest` |
 | Start Menu | `Replay Viewer.lnk` |
 | Autostart | optional; HKCU `Run` value or a scheduled logon task (a legacy task is migrated) |
-| Data kept | `logs/`, `cache/` |
+| Data kept | `logs/`, `cache/`, `cache-index/` |
 | Uninstall | Settings → Apps, or `ReplayViewer.exe --uninstall` |
 
 ---
@@ -314,16 +325,23 @@ release with all four files. CI cannot publish a release on its own, by design �
 - The listener binds `127.0.0.1` only and serves a fixed set of routes.
 - Static files are confined to `wwwroot`: the path is resolved and must start with the root **plus
   a separator**, and any path containing `..` is refused.
-- Replay paths must resolve inside the Demos folder and end in `.replay`.
+- Replay paths must resolve inside the Demos folder and end in `.replay`; anything else is a 400.
+- Requests must name this app in `Host` (stops DNS rebinding) and `/api/*` refuses cross-site
+  browser calls. API responses are `Cache-Control: no-store`.
+- Replays are parsed in a child process with a priority, memory and time limit.
 - Request bodies are capped at 64 KB and must declare `application/json`.
 - No authentication on the loopback API: any local process can read the current match. Accepted for
   a single-user desktop app; documented in `SECURITY.md`.
 - The updater requires a detached ECDSA signature from the offline release key and fails closed
-  without one; the GitHub digest is checked as well.
+  without one; the GitHub digest is checked as well, and the payload's version must match the tag.
+- A failed install relaunches the installed app instead of leaving nothing running.
 
 ---
 
-## 12. Performance (measured on a 16-core machine)
+## 12. Performance (measured on a 16-core machine, before the parse moved to a child process)
+
+These numbers predate the out-of-process parse: the "cold parse" row describes the parent, which no
+longer parses. Re-measure before relying on them.
 
 | State | CPU | Memory |
 |---|---|---|
@@ -355,8 +373,8 @@ Two tests need a real replay in the Demos folder and skip on CI.
 ## 14. Known limitations
 
 - **Unsigned.** SmartScreen warns on first install; that is expected.
-- **A replay the parser stalls on cannot be opened.** It is killed after 20 s and refused after
-  that; four replays from 13 Nov behave this way.
+- **A replay the parser stalls on cannot be opened.** It is killed after about 2 s without
+  parser progress (60 s at most) and refused after that; four replays from 13 Nov behave this way.
 - **No history.** One match in memory at a time; the cache is per-replay, not a database.
 - **Fortnite format drift** is inherited from `FortniteReplayReader`; a game update can break
   parsing until that package updates.
