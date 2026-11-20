@@ -151,6 +151,41 @@ public sealed class InstallPayloadTests : IDisposable
     }
 
     [Fact]
+    public void A_failed_swap_restores_every_file_and_leaves_no_temp_files()
+    {
+        Write(Path.Combine(Source, "a.txt"), "A2");
+        Write(Path.Combine(Source, "b.txt"), "B2");
+        Write(Path.Combine(Destination, "a.txt"), "A1");
+        var blocked = Path.Combine(Destination, "b.txt");
+        Write(blocked, "B1");
+
+        // b.txt cannot be replaced, so a.txt (already swapped by then) must go back to A1.
+        using (new FileStream(blocked, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            Assert.Throws<IOException>(() =>
+                InstallPayload.Sync(Source, Destination, Preserved, null, 2, TimeSpan.FromMilliseconds(10))
+            );
+        }
+
+        Assert.Equal("A1", Read(Path.Combine(Destination, "a.txt")));
+        Assert.Equal("B1", Read(blocked));
+        Assert.Empty(Directory.EnumerateFiles(Destination, "*.new"));
+        Assert.Empty(Directory.EnumerateFiles(Destination, "*.old"));
+    }
+
+    [Fact]
+    public void A_successful_sync_leaves_no_temp_or_backup_files()
+    {
+        Write(Path.Combine(Source, "a.txt"), "A2");
+        Write(Path.Combine(Destination, "a.txt"), "A1");
+
+        InstallPayload.Sync(Source, Destination, Preserved);
+
+        Assert.Equal("A2", Read(Path.Combine(Destination, "a.txt")));
+        Assert.Equal(["a.txt"], Directory.EnumerateFiles(Destination).Select(Path.GetFileName));
+    }
+
+    [Fact]
     public void Blank_arguments_are_rejected()
     {
         Assert.Throws<ArgumentNullException>(() => InstallPayload.Sync(null!, Destination, Preserved));

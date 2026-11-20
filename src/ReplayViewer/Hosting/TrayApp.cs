@@ -7,6 +7,8 @@ internal sealed class TrayApp : ApplicationContext
 {
     private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(6);
 
+    // Resolve user32 from System32 only, so a DLL planted next to the exe is never loaded.
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetForegroundWindow(IntPtr hWnd);

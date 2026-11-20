@@ -79,7 +79,7 @@ public sealed class UpdatePendingTests : IDisposable
             .Parse(
                 """
                 {"tag_name":"v9.9.9","assets":[
-                  {"name":"ReplayViewer-win-x64-9.9.9.zip","browser_download_url":"https://example.test/a.zip","digest":"sha256:abc"}
+                  {"name":"ReplayViewer-win-x64-9.9.9.zip","browser_download_url":"https://github.com/ddev01/fn-replay-viewer/releases/download/v2.0.0/a.zip","digest":"sha256:abc"}
                 ]}
                 """
             )
@@ -98,8 +98,8 @@ public sealed class UpdatePendingTests : IDisposable
             .Parse(
                 """
                 {"tag_name":"v9.9.9","assets":[
-                  {"name":"ReplayViewer-win-x64-9.9.9.zip.sig","browser_download_url":"https://example.test/a.zip.sig"},
-                  {"name":"ReplayViewer-win-x64-9.9.9.zip","browser_download_url":"https://example.test/a.zip","digest":"sha256:abc"}
+                  {"name":"ReplayViewer-win-x64-9.9.9.zip.sig","browser_download_url":"https://github.com/ddev01/fn-replay-viewer/releases/download/v2.0.0/a.zip.sig"},
+                  {"name":"ReplayViewer-win-x64-9.9.9.zip","browser_download_url":"https://github.com/ddev01/fn-replay-viewer/releases/download/v2.0.0/a.zip","digest":"sha256:abc"}
                 ]}
                 """
             )
@@ -108,6 +108,6 @@ public sealed class UpdatePendingTests : IDisposable
         var available = UpdateChecker.ParseRelease(release, "1.0.0");
 
         Assert.NotNull(available);
-        Assert.Equal("https://example.test/a.zip.sig", available.SignatureUrl);
+        Assert.Equal("https://github.com/ddev01/fn-replay-viewer/releases/download/v2.0.0/a.zip.sig", available.SignatureUrl);
     }
 }

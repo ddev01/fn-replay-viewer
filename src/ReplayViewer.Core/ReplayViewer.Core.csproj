@@ -6,4 +6,7 @@
   <ItemGroup>
     <PackageReference Include="FortniteReplayReader" Version="3.1.0" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ReplayViewer.Tests" />
+  </ItemGroup>
 </Project>

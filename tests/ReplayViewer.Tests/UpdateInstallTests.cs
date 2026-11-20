@@ -3,14 +3,28 @@ namespace ReplayViewer.Tests;
 public sealed class UpdateInstallTests
 {
     [Fact]
-    public void The_installed_app_is_relaunched_even_when_the_install_step_fails()
+    public void The_payload_is_told_to_wait_for_this_process_and_to_relaunch_the_app()
     {
-        const string payload = @"C:\p\ReplayViewer.exe";
-        var line = UpdateInstaller.BuildCommandLine(payload, @"C:\i\ReplayViewer.exe");
+        var args = UpdateInstaller.BuildArguments(1234);
 
-        // Waits for the install, then starts the installed exe unconditionally ("&", not "&&").
-        Assert.Contains($"start \"\" /wait \"{payload}\" --install & start", line, StringComparison.Ordinal);
-        Assert.DoesNotContain("&&", line, StringComparison.Ordinal);
+        Assert.Equal(["--install", "--relaunch", "--wait-pid", "1234"], args);
+        Assert.Equal(1234, UpdateInstaller.WaitPid(args));
+    }
+
+    [Theory]
+    [InlineData("--install")]
+    [InlineData("--install", "--wait-pid")]
+    [InlineData("--install", "--wait-pid", "abc")]
+    [InlineData("--install", "--wait-pid", "-5")]
+    public void A_missing_or_malformed_wait_pid_is_ignored(params string[] args)
+    {
+        Assert.Null(UpdateInstaller.WaitPid(args));
+    }
+
+    [Fact]
+    public void Waiting_for_a_process_that_is_already_gone_returns_at_once()
+    {
+        UpdateInstaller.WaitForExit(int.MaxValue, TimeSpan.FromSeconds(30));
     }
 
     [Fact]

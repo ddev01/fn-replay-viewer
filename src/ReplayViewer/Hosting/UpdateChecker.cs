@@ -9,6 +9,9 @@ namespace ReplayViewer;
 internal static class UpdateChecker
 {
     private const string VersionFileName = "version.txt";
+
+    // The zip is about 35 MB; anything near this is not a release of this app.
+    private const long MaxDownloadBytes = 300L * 1024 * 1024;
     private static readonly HttpClient CheckClient = CreateClient(TimeSpan.FromSeconds(15));
 
     public sealed record Available(
@@ -111,8 +114,19 @@ internal static class UpdateChecker
     private static string AssetName(JsonElement asset) =>
         asset.TryGetProperty("name", out var nameEl) ? nameEl.GetString() ?? "" : "";
 
-    private static string? AssetUrl(JsonElement asset) =>
-        asset.TryGetProperty("browser_download_url", out var urlEl) ? urlEl.GetString() : null;
+    /// <summary>
+    /// Release assets are served from github.com. Anything else is ignored, so a malformed or
+    /// tampered API response cannot point the updater at another host.
+    /// </summary>
+    private static string? AssetUrl(JsonElement asset)
+    {
+        var url = asset.TryGetProperty("browser_download_url", out var urlEl) ? urlEl.GetString() : null;
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            && uri.Scheme == Uri.UriSchemeHttps
+            && uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)
+            ? url
+            : null;
+    }
 
     /// <summary>
     /// Downloads, verifies and extracts an update into the pending folder, where it waits for
@@ -124,19 +138,10 @@ internal static class UpdateChecker
         Directory.CreateDirectory(PendingRoot);
         var exe = await DownloadVerifiedAsync(update, PendingRoot, cancellationToken)
             .ConfigureAwait(false);
-        File.WriteAllText(Path.Combine(PendingRoot, VersionFileName), update.Version);
+        await File.WriteAllTextAsync(Path.Combine(PendingRoot, VersionFileName), update.Version, cancellationToken)
+            .ConfigureAwait(false);
         FileLog.Info($"update {update.Version} staged at {exe}");
         return exe;
-    }
-
-    /// <summary>Downloads, verifies and extracts the update; returns the new executable path.</summary>
-    public static async Task<string> PrepareAsync(Available update, CancellationToken cancellationToken)
-    {
-        var root = Path.Combine(Path.GetTempPath(), "ReplayViewerUpdate");
-        var dir = Path.Combine(root, Guid.NewGuid().ToString("N"));
-        PruneOldUpdates(root, keep: dir);
-        Directory.CreateDirectory(dir);
-        return await DownloadVerifiedAsync(update, dir, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<string> DownloadVerifiedAsync(
@@ -165,7 +170,8 @@ internal static class UpdateChecker
         }
 
         VerifyDigest(zipPath, update.Digest);
-        ZipFile.ExtractToDirectory(zipPath, directory, overwriteFiles: true);
+        await ZipFile.ExtractToDirectoryAsync(zipPath, directory, overwriteFiles: true, cancellationToken)
+            .ConfigureAwait(false);
         File.Delete(zipPath);
         File.Delete(zipPath + ".sig");
         var exe =
@@ -209,8 +215,17 @@ internal static class UpdateChecker
     {
         using var response = await http.GetAsync(url, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
+        if (response.Content.Headers.ContentLength > MaxDownloadBytes)
+        {
+            throw new InvalidDataException("The update download is larger than any release of this app.");
+        }
+
         await using var file = File.Create(path);
         await response.Content.CopyToAsync(file, cancellationToken).ConfigureAwait(false);
+        if (file.Length > MaxDownloadBytes)
+        {
+            throw new InvalidDataException("The update download is larger than any release of this app.");
+        }
     }
 
     /// <summary>True when a verified payload is waiting to be applied.</summary>
@@ -270,35 +285,6 @@ internal static class UpdateChecker
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             FileLog.Info($"could not clear pending update: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Each update extracts a fresh payload; without this they accumulate in temp forever.
-    /// Best effort: a folder a previous update still has open is not worth failing over.
-    /// </summary>
-    internal static void PruneOldUpdates(string root, string keep)
-    {
-        if (!Directory.Exists(root))
-        {
-            return;
-        }
-
-        foreach (var stale in Directory.EnumerateDirectories(root))
-        {
-            if (string.Equals(stale, keep, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            try
-            {
-                Directory.Delete(stale, recursive: true);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                FileLog.Info($"could not remove old update folder {stale}: {ex.Message}");
-            }
         }
     }
 

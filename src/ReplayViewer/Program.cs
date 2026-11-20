@@ -17,34 +17,26 @@ internal static class Program
             return ReplayParseCommand.Run(args[1], args[2], args.Length > 3 ? args[3] : null);
         }
 
-        if (args.Any(a => string.Equals(a, "--install", StringComparison.OrdinalIgnoreCase)))
+        if (HasSwitch(args, UpdateInstaller.InstallSwitch))
         {
-            try
+            // The app being replaced may still be exiting; its exe cannot be replaced until it is.
+            if (UpdateInstaller.WaitPid(args) is { } parent)
             {
-                var paths = AppPaths.Default;
-                var source =
-                    Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
-                InstallLayout.CopyToInstallDir(source, paths);
-                // Startup is owned by the installer's autostart task and the tray toggle, so an
-                // update never re-enables it. A legacy logon task is migrated, not dropped.
-                if (LogonTask.Exists())
-                {
-                    InstallLayout.RegisterStartup(paths);
-                }
+                UpdateInstaller.WaitForExit(parent, TimeSpan.FromSeconds(30));
+            }
 
-                FileLog.Info($"installed to {paths.InstalledExePath}");
-                return 0;
-            }
-            catch (Exception ex)
+            var exitCode = Install();
+            // A failed install still relaunches: the old files were restored, and no app running
+            // is worse than an old app running.
+            if (HasSwitch(args, UpdateInstaller.RelaunchSwitch))
             {
-                // The updater chains on this exit code, so a failed copy must not look like
-                // success: returning 0 would relaunch the old build and report an update.
-                FileLog.Error("install failed", ex);
-                return 1;
+                Relaunch();
             }
+
+            return exitCode;
         }
 
-        if (args.Any(a => string.Equals(a, "--uninstall", StringComparison.OrdinalIgnoreCase)))
+        if (HasSwitch(args, "--uninstall"))
         {
             InstallLayout.RemoveStartup();
             InstallLayout.RemoveStartMenuShortcut();
@@ -73,6 +65,13 @@ internal static class Program
             return 0;
         }
 
+        // No ready marker here means any payload still in temp is a leftover of an update that
+        // already applied (the app starts it from there); it is a full copy of the old version.
+        // Nothing is staging yet, so this cannot delete a download in progress.
+        if (!UpdateChecker.TryGetPending(out _, out _))
+        {
+            UpdateChecker.ClearPending();
+        }
         AppPaths.Default.EnsureDirectories();
         ReplayFileAccess.SweepLegacyCopies(
             Path.Combine(Path.GetTempPath(), "ReplayViewer"),
@@ -103,5 +102,49 @@ internal static class Program
         var tray = new TrayApp(host);
         Application.Run(tray);
         return 0;
+    }
+
+    private static bool HasSwitch(string[] args, string name) =>
+        args.Any(a => string.Equals(a, name, StringComparison.OrdinalIgnoreCase));
+
+    private static int Install()
+    {
+        try
+        {
+            var paths = AppPaths.Default;
+            var source = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
+            InstallLayout.CopyToInstallDir(source, paths);
+            // Startup is owned by the installer's autostart task and the tray toggle, so an
+            // update never re-enables it. A legacy logon task is migrated, not dropped.
+            if (LogonTask.Exists())
+            {
+                InstallLayout.RegisterStartup(paths);
+            }
+
+            FileLog.Info($"installed to {paths.InstalledExePath}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            FileLog.Error("install failed", ex);
+            return 1;
+        }
+    }
+
+    private static void Relaunch()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(AppPaths.Default.InstalledExePath)
+                {
+                    UseShellExecute = false,
+                }
+            );
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            FileLog.Error("could not relaunch after install", ex);
+        }
     }
 }

@@ -10,8 +10,8 @@ public sealed class UpdateCheckerReleaseTests
         var release = Release(
             "v2.0.0",
             """
-            {"name":"notes.txt","browser_download_url":"https://example.test/notes.txt"},
-            {"name":"ReplayViewer-win-x64-2.0.0.zip","browser_download_url":"https://example.test/app.zip","digest":"sha256:abc"}
+            {"name":"notes.txt","browser_download_url":"https://github.com/ddev01/fn-replay-viewer/releases/download/v2.0.0/notes.txt"},
+            {"name":"ReplayViewer-win-x64-2.0.0.zip","browser_download_url":"https://github.com/ddev01/fn-replay-viewer/releases/download/v2.0.0/app.zip","digest":"sha256:abc"}
             """
         );
 
@@ -19,8 +19,19 @@ public sealed class UpdateCheckerReleaseTests
 
         Assert.NotNull(available);
         Assert.Equal("2.0.0", available.Version);
-        Assert.Equal("https://example.test/app.zip", available.ZipUrl);
+        Assert.Equal("https://github.com/ddev01/fn-replay-viewer/releases/download/v2.0.0/app.zip", available.ZipUrl);
         Assert.Equal("sha256:abc", available.Digest);
+    }
+
+    [Theory]
+    [InlineData("https://evil.example/app.zip")]
+    [InlineData("http://github.com/ddev01/fn-replay-viewer/app.zip")]
+    [InlineData("https://github.com.evil.example/app.zip")]
+    public void An_asset_that_is_not_on_https_github_com_is_ignored(string url)
+    {
+        var release = Release("v2.0.0", "{\"name\":\"a.zip\",\"browser_download_url\":\"" + url + "\"}");
+
+        Assert.Throws<InvalidOperationException>(() => UpdateChecker.ParseRelease(release, "1.0.6"));
     }
 
     [Fact]
@@ -28,7 +39,7 @@ public sealed class UpdateCheckerReleaseTests
     {
         var release = Release(
             "v1.0.6",
-            """{"name":"a.zip","browser_download_url":"https://example.test/a.zip"}"""
+            """{"name":"a.zip","browser_download_url":"https://github.com/ddev01/fn-replay-viewer/releases/download/v2.0.0/a.zip"}"""
         );
 
         Assert.Null(UpdateChecker.ParseRelease(release, "1.0.6"));
@@ -39,7 +50,7 @@ public sealed class UpdateCheckerReleaseTests
     {
         var release = Release(
             "v1.0.5",
-            """{"name":"a.zip","browser_download_url":"https://example.test/a.zip"}"""
+            """{"name":"a.zip","browser_download_url":"https://github.com/ddev01/fn-replay-viewer/releases/download/v2.0.0/a.zip"}"""
         );
 
         Assert.Null(UpdateChecker.ParseRelease(release, "1.0.6"));
@@ -60,7 +71,7 @@ public sealed class UpdateCheckerReleaseTests
     {
         var release = Release(
             "v2.0.0",
-            """{"name":"notes.txt","browser_download_url":"https://example.test/notes.txt"}"""
+            """{"name":"notes.txt","browser_download_url":"https://github.com/ddev01/fn-replay-viewer/releases/download/v2.0.0/notes.txt"}"""
         );
 
         Assert.Throws<InvalidOperationException>(() =>
@@ -75,14 +86,14 @@ public sealed class UpdateCheckerReleaseTests
             "v2.0.0",
             """
             {"name":"broken.zip"},
-            {"name":"good.zip","browser_download_url":"https://example.test/good.zip"}
+            {"name":"good.zip","browser_download_url":"https://github.com/ddev01/fn-replay-viewer/releases/download/v2.0.0/good.zip"}
             """
         );
 
         var available = UpdateChecker.ParseRelease(release, "1.0.6");
 
         Assert.NotNull(available);
-        Assert.Equal("https://example.test/good.zip", available.ZipUrl);
+        Assert.Equal("https://github.com/ddev01/fn-replay-viewer/releases/download/v2.0.0/good.zip", available.ZipUrl);
     }
 
     [Fact]
@@ -90,7 +101,7 @@ public sealed class UpdateCheckerReleaseTests
     {
         var release = Release(
             "v2.0.0",
-            """{"name":"a.zip","browser_download_url":"https://example.test/a.zip"}"""
+            """{"name":"a.zip","browser_download_url":"https://github.com/ddev01/fn-replay-viewer/releases/download/v2.0.0/a.zip"}"""
         );
 
         var available = UpdateChecker.ParseRelease(release, "1.0.6");
