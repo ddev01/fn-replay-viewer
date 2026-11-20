@@ -235,7 +235,7 @@ Parsing a 17-21 MB replay takes 0.5-2 s; the assembled match is ~49 KB of JSON, 
 to ~6 KB.
 
 - Location: `%LocalAppData%\ReplayViewer\cache\<key>.json.br`
-- Key: SHA-256 of `format version | Core assembly id | parser version | full path | size | last-write ticks`. The Core assembly id changes when parsing or assembly code changes, not on a UI-only release.
+- Key: SHA-256 of `format version | parser version | full path | size | last-write ticks`. `FormatVersion` in `MatchCache.cs` is bumped by hand when parsing, match assembly or the `MatchDocument` shape changes; an ordinary release leaves it alone so the cache survives the update.
 - 200 entries max, oldest pruned on write
 - Any failure (missing, corrupt, locked) is a **miss**, never an error
 - Invalidated automatically when the file changes or the parsing code or parser package changes

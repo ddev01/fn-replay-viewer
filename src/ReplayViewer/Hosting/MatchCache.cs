@@ -13,16 +13,18 @@ namespace ReplayViewer;
 /// </summary>
 internal static class MatchCache
 {
-    private const int FormatVersion = 2;
+    // Bump this when parsing, match assembly or the MatchDocument shape changes, and only then.
+    // shortcut: a manual constant. The assembly's ModuleVersionId looked automatic but changes on
+    // every build (version and commit hash are compiled in), so every release dropped the cache.
+    // Upgrade to a hash of the parsing sources if a forgotten bump ever serves stale matches.
+    private const int FormatVersion = 3;
     private const int KeepFiles = 200;
 
-    // Identifies the code that turns a replay into a MatchDocument. Keyed on the Core assembly (not
-    // the app version) so a UI-only release keeps the cache, while any change to parsing or
-    // assembly still invalidates it, with no version constant to forget to bump.
+    // Identifies the code that turns a replay into a MatchDocument; the parser package version
+    // covers upstream parsing changes.
     private static readonly string Fingerprint = string.Join(
         "|",
         FormatVersion,
-        typeof(MatchAssembler).Assembly.ManifestModule.ModuleVersionId,
         typeof(FortniteReplayReader.ReplayReader).Assembly.GetName().Version?.ToString() ?? "0"
     );
 
