@@ -78,6 +78,69 @@ public sealed class ListenerHostTests
         Assert.Equal(HttpStatusCode.OK, after.StatusCode);
     }
 
+    [Fact]
+    public async Task A_foreign_host_header_is_refused_so_dns_rebinding_gets_nothing()
+    {
+        var (host, baseUri) = StartWithFreePort([new StubRoute(_ => true, WriteBody)]);
+        using var _ = host;
+        using var client = new HttpClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(baseUri, "/api/match"));
+        request.Headers.Host = $"evil.example:{baseUri.Port}";
+
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(421, (int)response.StatusCode);
+    }
+
+    [Fact]
+    public async Task The_localhost_name_is_accepted()
+    {
+        var (host, baseUri) = StartWithFreePort([new StubRoute(_ => true, WriteBody)]);
+        using var _ = host;
+        using var client = new HttpClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(baseUri, "/api/match"));
+        request.Headers.Host = $"localhost:{baseUri.Port}";
+
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("Sec-Fetch-Site", "cross-site", 403)]
+    [InlineData("Sec-Fetch-Site", "same-site", 403)]
+    [InlineData("Sec-Fetch-Site", "same-origin", 200)]
+    [InlineData("Sec-Fetch-Site", "none", 200)]
+    [InlineData("Origin", "https://evil.example", 403)]
+    public async Task Api_calls_made_for_another_site_are_refused(string header, string value, int expected)
+    {
+        var (host, baseUri) = StartWithFreePort([new StubRoute(_ => true, WriteBody)]);
+        using var _ = host;
+        using var client = new HttpClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(baseUri, "/api/update/apply"));
+        request.Headers.TryAddWithoutValidation(header, value);
+
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expected, (int)response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Our_own_origin_is_allowed_and_api_responses_are_not_cacheable()
+    {
+        var (host, baseUri) = StartWithFreePort([new StubRoute(_ => true, WriteBody)]);
+        using var _ = host;
+        using var client = new HttpClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(baseUri, "/api/scrape"));
+        request.Headers.TryAddWithoutValidation("Origin", $"http://127.0.0.1:{baseUri.Port}");
+
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+        Assert.Equal("same-origin", response.Headers.GetValues("Cross-Origin-Resource-Policy").Single());
+    }
+
     private static async Task WriteBody(
         HttpListenerContext context,
         CancellationToken cancellationToken
