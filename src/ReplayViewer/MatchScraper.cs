@@ -16,9 +16,36 @@ internal sealed class MatchScraper : IMatchScraper
     // that in about two seconds. This is only the backstop for a child that wedges some other way.
     private static readonly TimeSpan ParseTimeout = TimeSpan.FromSeconds(60);
 
-    private readonly MatchCacheIndex _index = MatchCacheIndex.Default;
+    // A failure that may be a locked file rather than a bad replay is retried, but not on every
+    // pass: each retry costs a process start.
+    private static readonly TimeSpan TransientRetryAfter = TimeSpan.FromMinutes(30);
+
+    internal delegate Task<MatchDocument> ParseReplay(
+        string path,
+        TimeSpan timeout,
+        CancellationToken cancellationToken
+    );
+
+    private readonly string _demos;
+    private readonly string _cacheRoot;
+    private readonly MatchCacheIndex _index;
+    private readonly ParseReplay _parse;
     private readonly object _gate = new();
+    private readonly Dictionary<string, DateTime> _retryAfter = new(StringComparer.OrdinalIgnoreCase);
     private Task? _backfill;
+
+    public MatchScraper(
+        string? demosFolder = null,
+        string? cacheRoot = null,
+        MatchCacheIndex? index = null,
+        ParseReplay? parse = null
+    )
+    {
+        _demos = demosFolder ?? DemosFolder.DefaultPath;
+        _cacheRoot = cacheRoot ?? MatchCache.DefaultRoot;
+        _index = index ?? MatchCacheIndex.Default;
+        _parse = parse ?? ReplayParseProcess.ParseAsync;
+    }
 
     public bool BackfillRunning
     {
@@ -34,7 +61,7 @@ internal sealed class MatchScraper : IMatchScraper
     public IReadOnlyList<DemoListItem> ListDemos()
     {
         var replays = DemoCatalog
-            .ListAll(DemosFolder.DefaultPath)
+            .ListAll(_demos)
             .Select(WithIndex)
             .ToList();
         var onDisk = replays
@@ -50,7 +77,7 @@ internal sealed class MatchScraper : IMatchScraper
                 entry.Failed
                 || entry.CacheKey is null
                 || onDisk.Contains(entry.Name)
-                || !MatchCache.Exists(MatchCache.DefaultRoot, entry.CacheKey)
+                || !MatchCache.Exists(_cacheRoot, entry.CacheKey)
             )
             {
                 continue;
@@ -59,7 +86,7 @@ internal sealed class MatchScraper : IMatchScraper
             replays.Add(
                 new DemoListItem(
                     entry.Name,
-                    Path.Combine(DemosFolder.DefaultPath, entry.Name),
+                    Path.Combine(_demos, entry.Name),
                     entry.Length,
                     new DateTimeOffset(entry.LastWriteTicks, TimeSpan.Zero),
                     entry.MapName,
@@ -91,16 +118,25 @@ internal sealed class MatchScraper : IMatchScraper
         var path = Resolve(replayPath);
         var replay = Describe(path);
 
-        if (ReplayHeader.TryInspect(path, out var header) && header.IsLive)
+        try
         {
-            throw new LiveReplayException();
+            if (ReplayHeader.TryInspect(path, out var header) && header.IsLive)
+            {
+                throw new LiveReplayException();
+            }
+        }
+        catch (IOException)
+        {
+            // The game still holds a lock on a replay it is recording: that is "still writing",
+            // not a server fault.
+            throw new ReplayStillWritingException();
         }
 
         // A cached match skips the copy and the parse, which is the whole point: 0.5-3s saved.
         var cacheKey = MatchCache.KeyFor(path);
         if (
             cacheKey is not null
-            && MatchCache.TryRead(MatchCache.DefaultRoot, cacheKey, out var cached)
+            && MatchCache.TryRead(_cacheRoot, cacheKey, out var cached)
             && cached is not null
         )
         {
@@ -123,11 +159,9 @@ internal sealed class MatchScraper : IMatchScraper
         MatchDocument parsed;
         try
         {
-            parsed = await ReplayParseProcess
-                .ParseAsync(path, ParseTimeout, cancellationToken)
-                .ConfigureAwait(false);
+            parsed = await _parse(path, ParseTimeout, cancellationToken).ConfigureAwait(false);
         }
-        catch (TimeoutException)
+        catch (Exception ex) when (IsPermanent(ex))
         {
             _index.SaveFailure(replay, cacheKey);
             throw;
@@ -154,7 +188,7 @@ internal sealed class MatchScraper : IMatchScraper
 
     private async Task BackfillAsync()
     {
-        var replays = DemoCatalog.ListAll(DemosFolder.DefaultPath).Take(BackfillTake).ToArray();
+        var replays = DemoCatalog.ListAll(_demos).Take(BackfillTake).ToArray();
         if (replays.Length == 0)
         {
             return;
@@ -164,6 +198,11 @@ internal sealed class MatchScraper : IMatchScraper
         foreach (var replay in replays)
         {
             var cacheKey = MatchCache.KeyFor(replay.Path);
+            if (IsDeferred(replay.Name))
+            {
+                continue;
+            }
+
             try
             {
                 if (IsFresh(replay) && RefreshSummary(replay, cacheKey))
@@ -188,8 +227,7 @@ internal sealed class MatchScraper : IMatchScraper
                     continue;
                 }
 
-                var match = await ReplayParseProcess
-                    .ParseAsync(replay.Path, ParseTimeout, CancellationToken.None)
+                var match = await _parse(replay.Path, ParseTimeout, CancellationToken.None)
                     .ConfigureAwait(false);
                 if (SaveIfUnchanged(replay, cacheKey, match))
                 {
@@ -199,13 +237,35 @@ internal sealed class MatchScraper : IMatchScraper
             catch (Exception ex)
             {
                 FileLog.Info($"backfill skipped {replay.Name}: {ex.Message}");
-                _index.SaveFailure(replay, cacheKey);
+                if (IsPermanent(ex))
+                {
+                    _index.SaveFailure(replay, cacheKey);
+                }
+                else
+                {
+                    lock (_gate)
+                    {
+                        _retryAfter[replay.Name] = DateTime.UtcNow + TransientRetryAfter;
+                    }
+                }
             }
         }
 
         if (parsed > 0)
         {
             FileLog.Info($"backfill: parsed {parsed}");
+        }
+    }
+
+    /// <summary>Only a stall or a timeout says this exact file is bad; the rest may pass later.</summary>
+    private static bool IsPermanent(Exception ex) =>
+        ex is TimeoutException or UnreadableReplayException { IsPermanent: true };
+
+    private bool IsDeferred(string name)
+    {
+        lock (_gate)
+        {
+            return _retryAfter.TryGetValue(name, out var until) && until > DateTime.UtcNow;
         }
     }
 
@@ -221,7 +281,7 @@ internal sealed class MatchScraper : IMatchScraper
             return true;
         }
 
-        if (!MatchCache.TryRead(MatchCache.DefaultRoot, cacheKey, out var cached) || cached is null)
+        if (!MatchCache.TryRead(_cacheRoot, cacheKey, out var cached) || cached is null)
         {
             return false;
         }
@@ -254,7 +314,7 @@ internal sealed class MatchScraper : IMatchScraper
     private bool TryCachedOnly(string replayPath, out MatchDocument? match)
     {
         match = null;
-        var path = ReplayPaths.ResolveInside(DemosFolder.DefaultPath, replayPath);
+        var path = ReplayPaths.ResolveInside(_demos, replayPath);
         if (File.Exists(path))
         {
             return false;
@@ -262,16 +322,16 @@ internal sealed class MatchScraper : IMatchScraper
 
         var key = _index.CacheKeyFor(Path.GetFileName(path));
         return key is not null
-            && MatchCache.TryRead(MatchCache.DefaultRoot, key, out match)
+            && MatchCache.TryRead(_cacheRoot, key, out match)
             && match is not null;
     }
 
-    private static string Resolve(string? replayPath)
+    private string Resolve(string? replayPath)
     {
         string path;
         if (string.IsNullOrWhiteSpace(replayPath))
         {
-            var pick = LatestStableReplay.Pick(DemosFolder.DefaultPath);
+            var pick = LatestStableReplay.Pick(_demos);
             if (pick.StillWriting)
             {
                 throw new ReplayStillWritingException();
@@ -286,7 +346,7 @@ internal sealed class MatchScraper : IMatchScraper
         }
         else
         {
-            path = ReplayPaths.ResolveInside(DemosFolder.DefaultPath, replayPath);
+            path = ReplayPaths.ResolveInside(_demos, replayPath);
         }
 
         if (!File.Exists(path))
@@ -316,7 +376,7 @@ internal sealed class MatchScraper : IMatchScraper
             return false;
         }
 
-        MatchCache.Write(MatchCache.DefaultRoot, cacheKey, match);
+        MatchCache.Write(_cacheRoot, cacheKey, match);
         _index.Save(before, cacheKey, match);
         return true;
     }
@@ -346,7 +406,7 @@ internal sealed class MatchScraper : IMatchScraper
             return replay with { Unreadable = true };
         }
 
-        if (entry is null || key is null || !MatchCache.Exists(MatchCache.DefaultRoot, key))
+        if (entry is null || key is null || !MatchCache.Exists(_cacheRoot, key))
         {
             return replay;
         }
@@ -374,7 +434,7 @@ internal sealed class MatchScraper : IMatchScraper
                 || (
                     key is not null
                     && entry.Schema >= MatchCacheIndex.CurrentSchema
-                    && MatchCache.Exists(MatchCache.DefaultRoot, key)
+                    && MatchCache.Exists(_cacheRoot, key)
                 )
             );
     }

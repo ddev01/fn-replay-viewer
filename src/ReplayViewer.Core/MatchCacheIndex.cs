@@ -151,11 +151,19 @@ public sealed class MatchCacheIndex
 
     private void WriteIndex()
     {
-        Directory.CreateDirectory(_directory);
-        var path = Path.Combine(_directory, IndexFileName);
-        var temp = path + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(Entries.Values.ToArray(), Json));
-        File.Move(temp, path, overwrite: true);
+        try
+        {
+            Directory.CreateDirectory(_directory);
+            var path = Path.Combine(_directory, IndexFileName);
+            var temp = path + ".tmp";
+            File.WriteAllText(temp, JsonSerializer.Serialize(Entries.Values.ToArray(), Json));
+            File.Move(temp, path, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The sidebar summary is a convenience: a locked or full disk must not turn a good
+            // parse into an error. The entry stays in memory and the next save retries the write.
+        }
     }
 
     private Dictionary<string, CachedMatch> Entries

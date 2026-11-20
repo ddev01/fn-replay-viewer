@@ -74,6 +74,10 @@ internal static class Program
         }
 
         AppPaths.Default.EnsureDirectories();
+        ReplayFileAccess.SweepLegacyCopies(
+            Path.Combine(Path.GetTempPath(), "ReplayViewer"),
+            TimeSpan.FromHours(1)
+        );
         ApplicationConfiguration.Initialize();
         var scraper = new MatchScraper();
         IHttpRoute[] routes = [new MatchRoutes(scraper)];

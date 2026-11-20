@@ -105,7 +105,7 @@ public sealed class FortniteReplayProbe
         var progress = ProgressField(reader.GetType());
         if (progress is null)
         {
-            return reader.ReadReplay(path);
+            return ReadFrom(reader, path);
         }
 
         FortniteReplay? replay = null;
@@ -115,7 +115,7 @@ public sealed class FortniteReplayProbe
         {
             try
             {
-                replay = reader.ReadReplay(path);
+                replay = ReadFrom(reader, path);
             }
             catch (Exception ex)
             {
@@ -162,6 +162,12 @@ public sealed class FortniteReplayProbe
         }
 
         return replay!;
+    }
+
+    private static FortniteReplay ReadFrom(ReplayReader reader, string path)
+    {
+        using var stream = ReplayFileAccess.OpenSharedRead(path);
+        return reader.ReadReplay(stream);
     }
 
     private static System.Reflection.FieldInfo? ProgressField(Type type)
@@ -247,10 +253,7 @@ public sealed class FortniteReplayProbe
                 replay.Stats.Accuracy,
                 (int)replay.Stats.Assists,
                 (int)replay.Stats.Revives,
-                (int)replay.Stats.DamageTaken,
-                Wood: null,
-                Stone: null,
-                Metal: null
+                (int)replay.Stats.DamageTaken
             );
         }
 

@@ -36,7 +36,7 @@ public sealed class MatchCacheTests : IDisposable
             1,
             1,
             null,
-            new OwnerStatsSnapshot(5, 812, 0.34, 1, 1, 455, 120, 60, 30),
+            new OwnerStatsSnapshot(5, 812, 0.34, 1, 1, 455),
             [
                 new TeamRoster(
                     0,
@@ -141,5 +141,13 @@ public sealed class MatchCacheTests : IDisposable
         Assert.Equal(2, remaining.Length);
         Assert.Contains("k0.json.br", remaining);
         Assert.Contains("k1.json.br", remaining);
+    }
+
+    [Fact]
+    public void An_update_keeps_the_cache_and_its_index()
+    {
+        // Both live inside the install directory, which the updater syncs from the payload.
+        Assert.Contains(Path.GetFileName(MatchCache.DefaultRoot), InstallLayout.PreservedDirectoryNames);
+        Assert.Contains("cache-index", InstallLayout.PreservedDirectoryNames);
     }
 }

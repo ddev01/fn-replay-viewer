@@ -39,10 +39,19 @@ internal static class ReplayParseProcess
         start.ArgumentList.Add(output);
         start.ArgumentList.Add(Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
 
+        // A crafted file that allocates without bound should take down this child, not the app.
+        start.Environment["DOTNET_GCHeapHardLimit"] = "0x80000000";
+
         using var child = new Process { StartInfo = start };
         try
         {
             child.Start();
+            try
+            {
+                // Backfill parses many replays while the game may be running.
+                child.PriorityClass = ProcessPriorityClass.BelowNormal;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
             var errors = child.StandardError.ReadToEndAsync(CancellationToken.None);
             using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             limit.CancelAfter(timeout);
@@ -68,7 +77,7 @@ internal static class ReplayParseProcess
             {
                 if (child.ExitCode == 3)
                 {
-                    throw new UnreadableReplayException(Stalled);
+                    throw new UnreadableReplayException(Stalled) { IsPermanent = true };
                 }
 
                 var message = (await errors.ConfigureAwait(false)).Trim();
@@ -119,7 +128,6 @@ internal static class ReplayParseCommand
 {
     public static int Run(string replayPath, string outputPath, string? parentId)
     {
-        var copy = "";
         try
         {
             if (int.TryParse(parentId, out var parent) && !WatchParent(parent))
@@ -127,8 +135,16 @@ internal static class ReplayParseCommand
                 return 1;
             }
 
-            copy = ReplayFileAccess.CopyWithReadWriteShare(replayPath);
-            var snapshot = new FortniteReplayProbe().Read(copy, CancellationToken.None);
+            if (new FileInfo(replayPath).Length > ReplayFileAccess.MaxReplayBytes)
+            {
+                Console.Error.WriteLine("This replay file is too large to be a Fortnite replay.");
+                return 1;
+            }
+
+            // The parent owns the deadline (and kills this process), so a second, equal timer here
+            // would only race it and report the same slow file as 422 instead of 504.
+            var probe = new FortniteReplayProbe { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+            var snapshot = probe.Read(replayPath, CancellationToken.None);
             snapshot = snapshot with { SourceFileName = Path.GetFileName(replayPath) };
             var match = MatchAssembler.Build(snapshot, DateTimeOffset.UtcNow);
             File.WriteAllText(outputPath, JsonSerializer.Serialize(match, HttpJson.Options));
@@ -138,17 +154,6 @@ internal static class ReplayParseCommand
         {
             Console.Error.WriteLine(ex.Message);
             return 1;
-        }
-        finally
-        {
-            if (copy.Length > 0)
-            {
-                try
-                {
-                    File.Delete(copy);
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-            }
         }
     }
 

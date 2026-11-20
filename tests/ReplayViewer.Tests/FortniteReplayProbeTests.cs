@@ -2,8 +2,7 @@ namespace ReplayViewer.Tests;
 
 public class FortniteReplayProbeTests
 {
-    // These two need a real .replay in the Demos folder, so they skip on CI. The copy they
-    // depend on is covered deterministically by ReplayFileAccessTests.
+    // These two need a real .replay in the Demos folder, so they skip on CI.
     [Fact]
     public async Task Parses_a_local_demo_when_present()
     {
@@ -75,11 +74,15 @@ public class FortniteReplayProbeTests
                 .OrderByDescending(i => i.LastWriteTimeUtc)
         )
         {
-            var copy = ReplayFileAccess.CopyWithReadWriteShare(info.FullName);
             try
             {
-                var snapshot = await new FortniteReplayProbe().ReadAsync(
-                    copy,
+                // Throw instead of the default Environment.Exit(3), which would end the test host.
+                var probe = new FortniteReplayProbe
+                {
+                    OnStall = () => throw new UnreadableReplayException("stalled"),
+                };
+                var snapshot = await probe.ReadAsync(
+                    info.FullName,
                     TestContext.Current.CancellationToken
                 );
                 // Some finished replays never record an owner, and the Owner_timeline test
@@ -92,10 +95,6 @@ public class FortniteReplayProbeTests
             catch (Exception ex) when (ex is ReplayStillWritingException or UnreadableReplayException)
             {
                 // Truncated or unreadable; try the next one down.
-            }
-            finally
-            {
-                File.Delete(copy);
             }
         }
 

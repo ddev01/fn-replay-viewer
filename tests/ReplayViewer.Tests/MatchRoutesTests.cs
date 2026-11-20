@@ -117,6 +117,26 @@ public sealed class MatchRoutesTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("\"x\"")]
+    public async Task Post_scrape_rejects_a_body_that_is_not_a_JSON_object_with_400(string body)
+    {
+        using var response = await Post(body, "application/json");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_scrape_maps_an_invalid_path_to_400()
+    {
+        _scraper.OnScrape = () => throw new InvalidReplayPathException("nope");
+
+        using var response = await Post("{}", "application/json");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     [Fact]
     public async Task Post_scrape_maps_a_timeout_to_504()
     {

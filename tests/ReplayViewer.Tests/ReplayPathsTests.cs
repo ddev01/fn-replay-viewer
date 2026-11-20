@@ -33,7 +33,7 @@ public class ReplayPathsTests
     {
         var dir = CreateDir();
 
-        Assert.Throws<UnauthorizedAccessException>(() =>
+        Assert.Throws<InvalidReplayPathException>(() =>
             ReplayPaths.ResolveInside(dir, Path.Combine("..", "match.replay"))
         );
 
@@ -47,7 +47,7 @@ public class ReplayPathsTests
         var outsider = Path.Combine(Path.GetTempPath(), "ReplayViewerTests", Guid.NewGuid().ToString("N") + ".replay");
         File.WriteAllBytes(outsider, [1]);
 
-        Assert.Throws<UnauthorizedAccessException>(() => ReplayPaths.ResolveInside(dir, outsider));
+        Assert.Throws<InvalidReplayPathException>(() => ReplayPaths.ResolveInside(dir, outsider));
 
         File.Delete(outsider);
         Directory.Delete(dir, recursive: true);
@@ -60,7 +60,17 @@ public class ReplayPathsTests
         var path = Path.Combine(dir, "notes.txt");
         File.WriteAllBytes(path, [1]);
 
-        Assert.Throws<UnauthorizedAccessException>(() => ReplayPaths.ResolveInside(dir, path));
+        Assert.Throws<InvalidReplayPathException>(() => ReplayPaths.ResolveInside(dir, path));
+
+        Directory.Delete(dir, recursive: true);
+    }
+
+    [Fact]
+    public void Rejects_a_path_with_a_NUL_as_an_invalid_path_not_a_crash()
+    {
+        var dir = CreateDir();
+
+        Assert.Throws<InvalidReplayPathException>(() => ReplayPaths.ResolveInside(dir, "a\0b.replay"));
 
         Directory.Delete(dir, recursive: true);
     }

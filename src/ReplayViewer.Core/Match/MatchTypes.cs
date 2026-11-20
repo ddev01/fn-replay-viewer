@@ -35,10 +35,7 @@ public sealed record OwnerStatsSnapshot(
     double? Accuracy,
     int? Assists,
     int? Revives,
-    int? DamageTaken,
-    int? Wood,
-    int? Stone,
-    int? Metal
+    int? DamageTaken
 );
 
 public sealed record PlayerSnapshot(

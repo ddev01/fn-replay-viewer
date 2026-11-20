@@ -8,6 +8,7 @@ internal sealed class MatchRoutes : IHttpRoute
 {
     private const int MaxBodyBytes = 64 * 1024;
     private static readonly SemaphoreSlim ScrapeGate = new(1, 1);
+    private static readonly object ApplyGate = new();
     private static MatchDocument? s_last;
     private readonly IMatchScraper _scraper;
     private readonly StaticFiles _files = new();
@@ -67,7 +68,22 @@ internal sealed class MatchRoutes : IHttpRoute
                 && path == "/api/update/apply"
             )
             {
-                if (!UpdateChecker.TryGetPending(out var pendingVersion, out var pendingExe))
+                string pendingVersion;
+                // Check-then-act: two quick POSTs must not both start an installer chain.
+                lock (ApplyGate)
+                {
+                    if (!UpdateChecker.TryGetPending(out pendingVersion, out var pendingExe))
+                    {
+                        pendingVersion = "";
+                    }
+                    else
+                    {
+                        UpdateChecker.MarkApplied();
+                        UpdateInstaller.Apply(pendingExe, AppPaths.Default.InstalledExePath);
+                    }
+                }
+
+                if (pendingVersion.Length == 0)
                 {
                     await HttpJson
                         .WriteErrorAsync(response, 409, "No update is ready.")
@@ -75,8 +91,6 @@ internal sealed class MatchRoutes : IHttpRoute
                     return;
                 }
 
-                UpdateChecker.MarkApplied();
-                UpdateInstaller.Apply(pendingExe, AppPaths.Default.InstalledExePath);
                 await HttpJson
                     .WriteJsonAsync(response, new { applying = pendingVersion })
                     .ConfigureAwait(false);
@@ -136,6 +150,14 @@ internal sealed class MatchRoutes : IHttpRoute
                 if (!string.IsNullOrWhiteSpace(body))
                 {
                     using var doc = JsonDocument.Parse(body);
+                    if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                    {
+                        await HttpJson
+                            .WriteErrorAsync(response, 400, "Expected a JSON object.")
+                            .ConfigureAwait(false);
+                        return;
+                    }
+
                     if (
                         doc.RootElement.TryGetProperty("path", out var pathProp)
                         && pathProp.ValueKind == JsonValueKind.String
@@ -161,13 +183,15 @@ internal sealed class MatchRoutes : IHttpRoute
                     result = await _scraper
                         .ScrapeAsync(replayPath, cancellationToken)
                         .ConfigureAwait(false);
+                    // Publish while still holding the gate: after the release a faster scrape
+                    // could finish first and then be overwritten by this older one.
+                    s_last = result.Match;
                 }
                 finally
                 {
                     ScrapeGate.Release();
                 }
 
-                s_last = result.Match;
                 if (result.Cached)
                 {
                     response.AddHeader("X-Replay-Cached", "1");
@@ -228,7 +252,7 @@ internal sealed class MatchRoutes : IHttpRoute
         {
             await HttpJson.WriteErrorAsync(response, 422, ex.Message).ConfigureAwait(false);
         }
-        catch (UnauthorizedAccessException ex)
+        catch (InvalidReplayPathException ex)
         {
             await HttpJson.WriteErrorAsync(response, 400, ex.Message).ConfigureAwait(false);
         }

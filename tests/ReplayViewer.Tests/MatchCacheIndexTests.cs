@@ -39,7 +39,7 @@ public sealed class MatchCacheIndexTests : IDisposable
     public void The_roster_kills_win_over_the_event_stat()
     {
         var index = new MatchCacheIndex(_directory);
-        index.Save(Replay(), "key1", Match() with { OwnerStats = new OwnerStatsSnapshot(1, null, null, null, null, null, null, null, null) });
+        index.Save(Replay(), "key1", Match() with { OwnerStats = new OwnerStatsSnapshot(1, null, null, null, null, null) });
 
         // The page shows the roster count, so the sidebar must agree with it.
         Assert.Equal(6, new MatchCacheIndex(_directory).Get(Replay(), "key1")?.Elims);
@@ -111,7 +111,7 @@ public sealed class MatchCacheIndexTests : IDisposable
                 2,
                 DateTimeOffset.UnixEpoch,
                 null,
-                new OwnerStatsSnapshot(6, null, null, null, null, null, null, null, null),
+                new OwnerStatsSnapshot(6, null, null, null, null, null),
                 [
                     new PlayerSnapshot(
                         "a",
