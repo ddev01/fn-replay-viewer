@@ -8,13 +8,23 @@ namespace ReplayViewer;
 
 /// <summary>
 /// Keeps the assembled match for a replay on disk so reopening it skips the parse. The key
-/// covers the file's size and timestamp (Fortnite rewrites replays) and the app version (a
+/// covers the file's size and timestamp (Fortnite rewrites replays) and the parsing code (a
 /// parser or mapping change must not serve an old result). Best effort: any failure is a miss.
 /// </summary>
 internal static class MatchCache
 {
     private const int FormatVersion = 2;
     private const int KeepFiles = 200;
+
+    // Identifies the code that turns a replay into a MatchDocument. Keyed on the Core assembly (not
+    // the app version) so a UI-only release keeps the cache, while any change to parsing or
+    // assembly still invalidates it, with no version constant to forget to bump.
+    private static readonly string Fingerprint = string.Join(
+        "|",
+        FormatVersion,
+        typeof(MatchAssembler).Assembly.ManifestModule.ModuleVersionId,
+        typeof(FortniteReplayReader.ReplayReader).Assembly.GetName().Version?.ToString() ?? "0"
+    );
 
     public static string DefaultRoot => Path.Combine(AppPaths.Default.RootDirectory, "cache");
 
@@ -23,10 +33,7 @@ internal static class MatchCache
         try
         {
             var info = new FileInfo(replayPath);
-            var parser =
-                typeof(FortniteReplayReader.ReplayReader).Assembly.GetName().Version?.ToString() ?? "0";
-            var identity =
-                $"{FormatVersion}|{AppConfig.Version}|{parser}|{info.FullName}|{info.Length}|{info.LastWriteTimeUtc.Ticks}";
+            var identity = $"{Fingerprint}|{info.FullName}|{info.Length}|{info.LastWriteTimeUtc.Ticks}";
             var hash = SHA256.HashData(Encoding.UTF8.GetBytes(identity));
             return Convert.ToHexString(hash)[..32].ToLowerInvariant();
         }

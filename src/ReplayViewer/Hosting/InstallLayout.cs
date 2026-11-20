@@ -6,7 +6,9 @@ namespace ReplayViewer;
 
 internal static class InstallLayout
 {
-    private static readonly string[] PreservedDirectoryNames = ["logs"];
+    // The match cache and its sidebar index live in the install directory: an update must not
+    // wipe them, or matches whose replay Fortnite already deleted are lost.
+    internal static readonly string[] PreservedDirectoryNames = ["logs", "cache", "cache-index"];
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValueName = "ReplayViewer";
 
