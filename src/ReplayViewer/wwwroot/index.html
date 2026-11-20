@@ -26,6 +26,11 @@
         <button id="update-apply" type="button" class="primary">Update now</button>
       </div>
       <section id="summary" class="summary" hidden></section>
+      <section id="empty" class="empty-state" hidden>
+        <p id="empty-text"></p>
+        <button id="empty-retry" type="button" class="primary">Try again</button>
+        <button id="empty-demos" type="button">Pick a replay</button>
+      </section>
       <div class="toolbar">
         <button
           id="toggle-demos"
@@ -89,6 +94,6 @@
         <ol id="timeline" class="timeline"></ol>
       </section>
     </main>
-    <script src="/app.js"></script>
+    <script type="module" src="/app.js"></script>
   </body>
 </html>

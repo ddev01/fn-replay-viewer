@@ -5,10 +5,11 @@
   "description": "Lint, typecheck and UI smoke tests for the ReplayViewer wwwroot assets.",
   "scripts": {
     "lint": "npm run lint:js && npm run lint:css && npm run format:check",
-    "lint:js": "eslint src/ReplayViewer/wwwroot tests/ui",
+    "lint:js": "eslint src/ReplayViewer/wwwroot tests/ui tests/unit",
     "lint:css": "stylelint src/ReplayViewer/wwwroot/app.css",
-    "format:check": "prettier --check \"src/ReplayViewer/wwwroot/*.js\" \"src/ReplayViewer/types/*.d.ts\" \"tests/ui/**/*.{js,mjs}\" \"package.json\" \"jsconfig.json\" \"eslint.config.js\" \"playwright.config.mjs\" \".prettierrc\" \".stylelintrc.json\"",
+    "format:check": "prettier --check \"src/ReplayViewer/wwwroot/*.js\" \"src/ReplayViewer/types/*.d.ts\" \"tests/**/*.{js,mjs}\" \"package.json\" \"jsconfig.json\" \"eslint.config.js\" \"playwright.config.mjs\" \".prettierrc\" \".stylelintrc.json\"",
     "typecheck": "tsc -p jsconfig.json",
+    "test:unit": "node --test \"tests/unit/*.test.mjs\"",
     "test:ui": "playwright test"
   },
   "devDependencies": {

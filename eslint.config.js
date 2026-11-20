@@ -10,12 +10,12 @@ export default [
     files: ["src/ReplayViewer/wwwroot/**/*.js"],
     languageOptions: {
       ecmaVersion: 2022,
-      sourceType: "script",
+      sourceType: "module",
       globals: { ...globals.browser },
     },
   },
   {
-    files: ["tests/ui/**/*.mjs", "*.js", "*.mjs"],
+    files: ["tests/**/*.mjs", "*.js", "*.mjs"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",

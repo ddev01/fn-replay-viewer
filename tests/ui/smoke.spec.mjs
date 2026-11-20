@@ -386,3 +386,28 @@ test("squads and players are real buttons, and errors are announced", async ({ p
   await expect(page.locator("#roster .pname").first()).toHaveJSProperty("tagName", "BUTTON");
   await expect(page.locator("#status")).toHaveAttribute("role", "status");
 });
+
+test("a first scrape that fails shows an empty state with a way forward", async ({ page }) => {
+  await page.route("**/api/match", (route) => route.fulfill({ status: 404, body: "" }));
+  let attempts = 0;
+  await page.route("**/api/scrape", (route) => {
+    attempts += 1;
+    if (attempts === 1) {
+      return route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "The newest replay is still being written." }),
+      });
+    }
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(match) });
+  });
+  await page.goto("about:blank");
+  await page.goto("/");
+
+  await expect(page.locator("#empty")).toBeVisible();
+  await expect(page.locator("#empty-text")).toContainText("still being written");
+
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expect(page.locator("#roster .team")).toHaveCount(2);
+  await expect(page.locator("#empty")).toBeHidden();
+});
