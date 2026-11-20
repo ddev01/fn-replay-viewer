@@ -35,12 +35,13 @@ internal sealed class StaticFiles
         }
 
         var path = Path.GetFullPath(Path.Combine(_root, relative));
-        if (!IsInsideRoot(_root, path) || !File.Exists(path))
+        // Only the file types the UI uses are served, so a stray file in wwwroot is never exposed.
+        if (!IsInsideRoot(_root, path) || !File.Exists(path) || ContentType(path) is not { } contentType)
         {
             return false;
         }
 
-        response.ContentType = ContentType(path);
+        response.ContentType = contentType;
         response.StatusCode = 200;
         // The files ship with the app and change on update; a stale app.js after an update is
         // worse than re-reading a few KB from disk, so nothing here is cached.
@@ -61,7 +62,7 @@ internal sealed class StaticFiles
         return path.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string ContentType(string path) =>
+    private static string? ContentType(string path) =>
         Path.GetExtension(path).ToLowerInvariant() switch
         {
             ".html" => "text/html; charset=utf-8",
@@ -70,6 +71,6 @@ internal sealed class StaticFiles
             ".png" => "image/png",
             ".svg" => "image/svg+xml",
             ".ico" => "image/x-icon",
-            _ => "application/octet-stream",
+            _ => null,
         };
 }

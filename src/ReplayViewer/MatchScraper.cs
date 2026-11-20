@@ -1,4 +1,3 @@
-using System.Runtime;
 using ReplayViewer.Core;
 
 namespace ReplayViewer;
@@ -168,7 +167,6 @@ internal sealed class MatchScraper : IMatchScraper
         }
 
         SaveIfUnchanged(replay, cacheKey, parsed);
-        CompactAfterParse();
         StartBackfill();
         return new ScrapeResult(parsed, Cached: false);
     }
@@ -385,15 +383,6 @@ internal sealed class MatchScraper : IMatchScraper
     {
         var after = Describe(before.Path);
         return after.Length == before.Length && after.LastWriteUtc == before.LastWriteUtc;
-    }
-
-    private static void CompactAfterParse()
-    {
-        // Parsing a 17-21 MB replay allocates hundreds of MB of transient buffers, most of it on
-        // the large object heap, and the runtime keeps that committed afterwards. This app then
-        // idles in the tray while the game needs the RAM, so hand it back now.
-        GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
-        GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
     }
 
     private DemoListItem WithIndex(DemoListItem replay)

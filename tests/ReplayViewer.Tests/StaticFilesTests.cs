@@ -66,13 +66,67 @@ public sealed class StaticFilesTests : IAsyncLifetime
     [InlineData("/style.css", "text/css; charset=utf-8")]
     [InlineData("/icon.svg", "image/svg+xml")]
     [InlineData("/favicon.ico", "image/x-icon")]
-    [InlineData("/data.bin", "application/octet-stream")]
     public async Task Content_type_follows_the_extension(string path, string expected)
     {
         using var response = await Get(path);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(expected, response.Content.Headers.ContentType?.ToString());
+    }
+
+    [Fact]
+    public async Task A_file_type_the_ui_does_not_use_is_not_served()
+    {
+        using var response = await Get("/data.bin");
+
+        Assert.Equal(LoopbackRoute.UnhandledStatus, (int)response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Every_module_the_real_ui_imports_is_served_as_javascript()
+    {
+        // The UI is split into native ES modules, which the browser only runs if each import
+        // resolves to a file served with a JavaScript content type.
+        var wwwroot = RealWwwroot();
+        var real = new StaticFiles(wwwroot);
+        await using var server = await LoopbackRoute.StartAsync(
+            (context, _) => Task.FromResult(real.TryServe(context.Request, context.Response))
+        );
+        var modules = Directory.EnumerateFiles(wwwroot, "*.js").Select(Path.GetFileName).ToArray();
+        Assert.Contains("app.js", modules);
+
+        foreach (var module in modules)
+        {
+            using var response = await server.Client.GetAsync(
+                new Uri(server.BaseUri, "/" + module),
+                TestContext.Current.CancellationToken
+            );
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("text/javascript; charset=utf-8", response.Content.Headers.ContentType?.ToString());
+
+            var source = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+            foreach (System.Text.RegularExpressions.Match import in System.Text.RegularExpressions.Regex.Matches(
+                source,
+                "from \"\\./([^\"]+)\""
+            ))
+            {
+                Assert.Contains(import.Groups[1].Value, modules);
+            }
+        }
+    }
+
+    private static string RealWwwroot()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            var path = Path.Combine(dir.FullName, "src", "ReplayViewer", "wwwroot");
+            if (Directory.Exists(path))
+            {
+                return path;
+            }
+        }
+
+        throw new DirectoryNotFoundException("wwwroot not found above the test output folder.");
     }
 
     [Fact]

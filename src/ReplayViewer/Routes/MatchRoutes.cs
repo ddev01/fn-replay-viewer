@@ -12,10 +12,23 @@ internal sealed class MatchRoutes : IHttpRoute
     private static MatchDocument? s_last;
     private readonly IMatchScraper _scraper;
     private readonly StaticFiles _files = new();
+    private readonly Dictionary<(string Method, string Path), Handler> _handlers;
+
+    private delegate Task Handler(HttpListenerContext context, CancellationToken cancellationToken);
 
     public MatchRoutes(IMatchScraper scraper)
     {
         _scraper = scraper;
+        _handlers = new()
+        {
+            [("GET", "/api/config")] = Config,
+            [("GET", "/api/update")] = UpdateStatus,
+            [("POST", "/api/update/apply")] = ApplyUpdate,
+            [("GET", "/api/demos")] = Demos,
+            [("POST", "/api/scrape")] = Scrape,
+            [("GET", "/api/match")] = (context, _) => LastMatch(context, fileName: null),
+            [("GET", "/api/match.json")] = (context, _) => LastMatch(context, fileName: "match.json"),
+        };
     }
 
     public bool Matches(HttpListenerRequest request)
@@ -33,202 +46,13 @@ internal sealed class MatchRoutes : IHttpRoute
     {
         var request = context.Request;
         var response = context.Response;
-        var path = request.Url?.AbsolutePath ?? "/";
-        var method = request.HttpMethod;
+        var key = (request.HttpMethod.ToUpperInvariant(), request.Url?.AbsolutePath ?? "/");
 
         try
         {
-            if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase) && path == "/api/config")
+            if (_handlers.TryGetValue(key, out var handler))
             {
-                await HttpJson
-                    .WriteJsonAsync(response, new { nameFnPublicUrl = AppConfig.NameFnPublicUrl })
-                    .ConfigureAwait(false);
-                return;
-            }
-
-            if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase) && path == "/api/update")
-            {
-                var staged = UpdateChecker.TryGetPending(out var stagedVersion, out _);
-                await HttpJson
-                    .WriteJsonAsync(
-                        response,
-                        new
-                        {
-                            available = UpdateChecker.AvailableVersion,
-                            staged,
-                            stagedVersion = staged ? stagedVersion : null,
-                        }
-                    )
-                    .ConfigureAwait(false);
-                return;
-            }
-
-            if (
-                string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase)
-                && path == "/api/update/apply"
-            )
-            {
-                string pendingVersion;
-                // Check-then-act: two quick POSTs must not both start an installer chain.
-                lock (ApplyGate)
-                {
-                    if (!UpdateChecker.TryGetPending(out pendingVersion, out var pendingExe))
-                    {
-                        pendingVersion = "";
-                    }
-                    else
-                    {
-                        UpdateChecker.MarkApplied();
-                        UpdateInstaller.Apply(pendingExe, AppPaths.Default.InstalledExePath);
-                    }
-                }
-
-                if (pendingVersion.Length == 0)
-                {
-                    await HttpJson
-                        .WriteErrorAsync(response, 409, "No update is ready.")
-                        .ConfigureAwait(false);
-                    return;
-                }
-
-                await HttpJson
-                    .WriteJsonAsync(response, new { applying = pendingVersion })
-                    .ConfigureAwait(false);
-                // Let the response reach the browser before the process goes away; the
-                // installer chain relaunches the new version.
-                _ = Task.Run(
-                    async () =>
-                    {
-                        await Task.Delay(800).ConfigureAwait(false);
-                        Environment.Exit(0);
-                    },
-                    CancellationToken.None
-                );
-                return;
-            }
-
-            if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase) && path == "/api/demos")
-            {
-                // The page only asks for the list while it is visible and focused, so this is
-                // user activity rather than a background timer.
-                // The page polls every two seconds while this is true, so read it before starting
-                // a pass: a pass that finishes in milliseconds would otherwise always look busy.
-                var backfill = _scraper.BackfillRunning;
-                _scraper.StartBackfill();
-                await HttpJson
-                    .WriteJsonAsync(
-                        response,
-                        new { demos = _scraper.ListDemos(), backfill }
-                    )
-                    .ConfigureAwait(false);
-                return;
-            }
-
-            if (string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase) && path == "/api/scrape")
-            {
-                var contentType = request.ContentType ?? "";
-                if (
-                    !contentType.StartsWith("application/json", StringComparison.OrdinalIgnoreCase)
-                )
-                {
-                    await HttpJson
-                        .WriteErrorAsync(response, 415, "Expected JSON.")
-                        .ConfigureAwait(false);
-                    return;
-                }
-
-                var body = await ReadBodyAsync(request, cancellationToken).ConfigureAwait(false);
-                if (body is null)
-                {
-                    await HttpJson
-                        .WriteErrorAsync(response, 413, "Request body is too large.")
-                        .ConfigureAwait(false);
-                    return;
-                }
-
-                string? replayPath = null;
-                if (!string.IsNullOrWhiteSpace(body))
-                {
-                    using var doc = JsonDocument.Parse(body);
-                    if (doc.RootElement.ValueKind != JsonValueKind.Object)
-                    {
-                        await HttpJson
-                            .WriteErrorAsync(response, 400, "Expected a JSON object.")
-                            .ConfigureAwait(false);
-                        return;
-                    }
-
-                    if (
-                        doc.RootElement.TryGetProperty("path", out var pathProp)
-                        && pathProp.ValueKind == JsonValueKind.String
-                    )
-                    {
-                        replayPath = pathProp.GetString();
-                    }
-                }
-
-                // One scrape at a time: each copies the whole replay and starts a parser, and the
-                // last response to finish would win the roster anyway.
-                if (!await ScrapeGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
-                {
-                    await HttpJson
-                        .WriteErrorAsync(response, 409, "A scrape is already running.")
-                        .ConfigureAwait(false);
-                    return;
-                }
-
-                ScrapeResult result;
-                try
-                {
-                    result = await _scraper
-                        .ScrapeAsync(replayPath, cancellationToken)
-                        .ConfigureAwait(false);
-                    // Publish while still holding the gate: after the release a faster scrape
-                    // could finish first and then be overwritten by this older one.
-                    s_last = result.Match;
-                }
-                finally
-                {
-                    ScrapeGate.Release();
-                }
-
-                if (result.Cached)
-                {
-                    response.AddHeader("X-Replay-Cached", "1");
-                }
-
-                await HttpJson.WriteJsonAsync(response, result.Match).ConfigureAwait(false);
-                return;
-            }
-
-            if (string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase) && path == "/api/match")
-            {
-                if (s_last is null)
-                {
-                    response.StatusCode = 404;
-                    response.OutputStream.Close();
-                    return;
-                }
-
-                await HttpJson.WriteJsonAsync(response, s_last).ConfigureAwait(false);
-                return;
-            }
-
-            if (
-                string.Equals(method, "GET", StringComparison.OrdinalIgnoreCase)
-                && path == "/api/match.json"
-            )
-            {
-                if (s_last is null)
-                {
-                    response.StatusCode = 404;
-                    response.OutputStream.Close();
-                    return;
-                }
-
-                await HttpJson
-                    .WriteJsonAsync(response, s_last, fileName: "match.json")
-                    .ConfigureAwait(false);
+                await handler(context, cancellationToken).ConfigureAwait(false);
                 return;
             }
 
@@ -237,8 +61,7 @@ internal sealed class MatchRoutes : IHttpRoute
                 return;
             }
 
-            response.StatusCode = 404;
-            response.OutputStream.Close();
+            await HttpJson.WriteErrorAsync(response, 404, "Not found.").ConfigureAwait(false);
         }
         catch (ReplayStillWritingException ex)
         {
@@ -266,7 +89,7 @@ internal sealed class MatchRoutes : IHttpRoute
         }
         catch (OperationCanceledException)
         {
-            // The client went away; nothing to report and nowhere to send it.
+            // The app is shutting down; nothing to report and nowhere to send it.
         }
         catch (JsonException)
         {
@@ -277,6 +100,152 @@ internal sealed class MatchRoutes : IHttpRoute
             FileLog.Error("scrape failed", ex);
             await HttpJson.WriteErrorAsync(response, 500, "Scrape failed.").ConfigureAwait(false);
         }
+    }
+
+    private static Task Config(HttpListenerContext context, CancellationToken cancellationToken) =>
+        HttpJson.WriteJsonAsync(context.Response, new { nameFnPublicUrl = AppConfig.NameFnPublicUrl });
+
+    private static Task UpdateStatus(HttpListenerContext context, CancellationToken cancellationToken)
+    {
+        var staged = UpdateChecker.TryGetPending(out var stagedVersion, out _);
+        return HttpJson.WriteJsonAsync(
+            context.Response,
+            new
+            {
+                available = UpdateChecker.AvailableVersion,
+                staged,
+                stagedVersion = staged ? stagedVersion : null,
+            }
+        );
+    }
+
+    private static async Task ApplyUpdate(HttpListenerContext context, CancellationToken cancellationToken)
+    {
+        var response = context.Response;
+        string pendingVersion;
+        // Check-then-act: two quick POSTs must not both start an installer.
+        lock (ApplyGate)
+        {
+            if (!UpdateChecker.TryGetPending(out pendingVersion, out var pendingExe))
+            {
+                pendingVersion = "";
+            }
+            else
+            {
+                UpdateChecker.MarkApplied();
+                UpdateInstaller.Apply(pendingExe, AppPaths.Default.InstalledExePath);
+            }
+        }
+
+        if (pendingVersion.Length == 0)
+        {
+            await HttpJson.WriteErrorAsync(response, 409, "No update is ready.").ConfigureAwait(false);
+            return;
+        }
+
+        await HttpJson.WriteJsonAsync(response, new { applying = pendingVersion }).ConfigureAwait(false);
+        // Let the response reach the browser before the process goes away: the payload is waiting
+        // for this process to exit before it installs and relaunches.
+        _ = Task.Run(
+            async () =>
+            {
+                await Task.Delay(800).ConfigureAwait(false);
+                Environment.Exit(0);
+            },
+            CancellationToken.None
+        );
+    }
+
+    private async Task Demos(HttpListenerContext context, CancellationToken cancellationToken)
+    {
+        // The page only asks for the list while it is visible and focused, so this is user
+        // activity rather than a background timer. The page polls every two seconds while
+        // backfill is true, so read it before starting a pass: a pass that finishes in
+        // milliseconds would otherwise always look busy.
+        var backfill = _scraper.BackfillRunning;
+        _scraper.StartBackfill();
+        await HttpJson
+            .WriteJsonAsync(context.Response, new { demos = _scraper.ListDemos(), backfill })
+            .ConfigureAwait(false);
+    }
+
+    private async Task Scrape(HttpListenerContext context, CancellationToken cancellationToken)
+    {
+        var request = context.Request;
+        var response = context.Response;
+
+        var contentType = request.ContentType ?? "";
+        if (!contentType.StartsWith("application/json", StringComparison.OrdinalIgnoreCase))
+        {
+            await HttpJson.WriteErrorAsync(response, 415, "Expected JSON.").ConfigureAwait(false);
+            return;
+        }
+
+        var body = await ReadBodyAsync(request, cancellationToken).ConfigureAwait(false);
+        if (body is null)
+        {
+            await HttpJson.WriteErrorAsync(response, 413, "Request body is too large.").ConfigureAwait(false);
+            return;
+        }
+
+        string? replayPath = null;
+        if (!string.IsNullOrWhiteSpace(body))
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                await HttpJson.WriteErrorAsync(response, 400, "Expected a JSON object.").ConfigureAwait(false);
+                return;
+            }
+
+            if (
+                doc.RootElement.TryGetProperty("path", out var pathProp)
+                && pathProp.ValueKind == JsonValueKind.String
+            )
+            {
+                replayPath = pathProp.GetString();
+            }
+        }
+
+        // One scrape at a time: each starts a parser, and the last response to finish would win
+        // the roster anyway.
+        if (!await ScrapeGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+        {
+            await HttpJson.WriteErrorAsync(response, 409, "A scrape is already running.").ConfigureAwait(false);
+            return;
+        }
+
+        ScrapeResult result;
+        try
+        {
+            result = await _scraper.ScrapeAsync(replayPath, cancellationToken).ConfigureAwait(false);
+            // Publish while still holding the gate: after the release a faster scrape could
+            // finish first and then be overwritten by this older one.
+            s_last = result.Match;
+        }
+        finally
+        {
+            ScrapeGate.Release();
+        }
+
+        if (result.Cached)
+        {
+            response.AddHeader("X-Replay-Cached", "1");
+        }
+
+        await HttpJson.WriteJsonAsync(response, result.Match).ConfigureAwait(false);
+    }
+
+    private static async Task LastMatch(HttpListenerContext context, string? fileName)
+    {
+        var last = s_last;
+        if (last is null)
+        {
+            await HttpJson.WriteErrorAsync(context.Response, 404, "No match has been opened yet.").ConfigureAwait(false);
+            return;
+        }
+
+        await HttpJson.WriteJsonAsync(context.Response, last, fileName: fileName).ConfigureAwait(false);
     }
 
     /// <summary>
