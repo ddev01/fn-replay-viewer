@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Signs the release artifacts with the key that never leaves this machine, then publishes the
-# release. Run this after the Release workflow has finished building the tag.
+# release. Safe to start right after pushing the tag: it waits for CI and the Release build.
 #
 #   scripts/sign-release.sh v1.2.3
 #
@@ -27,14 +27,38 @@ work=$(mktemp -d)
 pubdir=$(mktemp -d)
 trap 'rm -rf "$work" "$pubdir"' EXIT
 
-run=$(gh run list --repo "$repo" --workflow Release --limit 20 \
-    --json databaseId,headBranch \
-    --jq "[.[] | select(.headBranch == \"$tag\")][0].databaseId")
+# The Release workflow no longer runs the tests: refuse to publish a commit CI has not passed.
+sha=$(gh api "repos/$repo/commits/$tag" --jq .sha)
+ci_id=$(gh run list --repo "$repo" --workflow CI --commit "$sha" --json databaseId --jq '.[0].databaseId // empty')
+if [ -z "$ci_id" ]; then
+    echo "no CI run found for $tag ($sha); push it to develop and let CI finish first" >&2
+    exit 1
+fi
+if [ "$(gh run view "$ci_id" --repo "$repo" --json conclusion --jq .conclusion)" != "success" ]; then
+    echo "waiting for CI run $ci_id"
+    gh run watch "$ci_id" --repo "$repo" --exit-status >/dev/null || {
+        echo "CI did not succeed for $tag" >&2
+        exit 1
+    }
+fi
+
+# Wait for the Release run to appear and finish, so this can be started right after pushing the tag.
+run=""
+for _ in $(seq 1 30); do
+    run=$(gh run list --repo "$repo" --workflow Release --limit 20 \
+        --json databaseId,headBranch \
+        --jq "[.[] | select(.headBranch == \"$tag\")][0].databaseId")
+    [ -n "$run" ] && break
+    sleep 2
+done
 
 if [ -z "$run" ]; then
     echo "no Release run found for $tag — push the tag first" >&2
     exit 1
 fi
+
+echo "waiting for Release run $run"
+gh run watch "$run" --repo "$repo" --exit-status >/dev/null
 
 echo "downloading artifacts from run $run"
 gh run download "$run" --repo "$repo" -n release-assets -D "$work"

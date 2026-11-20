@@ -21,6 +21,34 @@ function Step([string]$name, [scriptblock]$body) {
     if ($LASTEXITCODE -ne 0) { throw "$name failed (exit $LASTEXITCODE)" }
 }
 
+$frontend = $null
+if (-not $SkipFrontend -and (Test-Path (Join-Path $root "package.json"))) {
+    $frontend = Start-Job -ArgumentList $root -ScriptBlock {
+        param($root)
+        Set-Location $root
+        $ErrorActionPreference = "Stop"
+        # npm ci wipes node_modules, so skip it while the lockfile is unchanged since the last install.
+        $stamp = Join-Path $root "node_modules\.lock-hash"
+        $hash = (Get-FileHash package-lock.json).Hash
+        if (-not (Test-Path $stamp) -or (Get-Content $stamp -Raw).Trim() -ne $hash) {
+            Write-Host "==> npm ci" -ForegroundColor Cyan
+            npm ci
+            if ($LASTEXITCODE -ne 0) { throw "npm ci failed (exit $LASTEXITCODE)" }
+            Set-Content -Path $stamp -Value $hash
+        }
+        foreach ($cmd in @(
+                "npx --no-install playwright install chromium",
+                "npm run lint",
+                "npm run typecheck",
+                "npm run test:unit",
+                "npm run test:ui")) {
+            Write-Host "==> $cmd" -ForegroundColor Cyan
+            Invoke-Expression $cmd
+            if ($LASTEXITCODE -ne 0) { throw "$cmd failed (exit $LASTEXITCODE)" }
+        }
+    }
+}
+
 Step "restore (locked)" { dotnet restore ReplayViewer.sln --locked-mode }
 Step "build" { dotnet build ReplayViewer.sln -c Release --nologo -warnaserror --no-restore }
 # Tests run once, with coverage, and the gate always applies: CI enforces it, so a local run that
@@ -41,14 +69,10 @@ Step "coverage gate" {
 }
 Step "format" { dotnet format ReplayViewer.sln --verify-no-changes --no-restore }
 
-$hasFrontend = -not $SkipFrontend -and (Test-Path (Join-Path $root "package.json"))
-if ($hasFrontend) {
-    Step "npm ci" { npm ci }
-    Step "playwright browsers" { npx --no-install playwright install chromium }
-    Step "lint" { npm run lint }
-    Step "typecheck" { npm run typecheck }
-    Step "unit tests" { npm run test:unit }
-    Step "ui tests" { npm run test:ui }
+if ($frontend) {
+    Write-Host "==> frontend (ran alongside the .NET steps)" -ForegroundColor Cyan
+    Receive-Job $frontend -Wait -AutoRemoveJob
+    $frontend = $null
 }
 
 if ($Pack) {
@@ -58,6 +82,7 @@ if ($Pack) {
 Write-Host "verify: OK" -ForegroundColor Green
 }
 finally {
+    if ($frontend) { Remove-Job $frontend -Force }
     $mutex.ReleaseMutex()
     $mutex.Dispose()
 }

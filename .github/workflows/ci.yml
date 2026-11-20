@@ -5,8 +5,10 @@ name: CI
 on:
   push:
     branches: [develop]
+    paths-ignore: ["**.md", "docs/**"]
   pull_request:
     branches: [develop]
+    paths-ignore: ["**.md", "docs/**"]
 
 permissions:
   contents: read
@@ -54,6 +56,14 @@ jobs:
       - name: Format
         run: dotnet format ReplayViewer.sln --verify-no-changes --no-restore
 
+  # Runs beside the .NET job instead of after it. The UI tests hit a stubbed API served by
+  # node, so nothing here depends on Windows; Linux runners start faster and cost half as much.
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -63,8 +73,16 @@ jobs:
       - name: npm ci
         run: npm ci
 
+      # Browser binaries only; keyed on the lockfile, so a Playwright bump refreshes them.
+      - name: Cache Playwright browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      # --with-deps installs the OS libraries each run; the browser download is skipped on a cache hit.
       - name: Playwright browsers
-        run: npx --no-install playwright install chromium
+        run: npx --no-install playwright install --with-deps chromium
 
       - name: Lint
         run: npm run lint

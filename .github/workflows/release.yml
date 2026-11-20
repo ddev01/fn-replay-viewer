@@ -24,9 +24,17 @@ jobs:
           cache: true
           cache-dependency-path: "**/packages.lock.json"
 
-      - name: Test
-        run: dotnet test ReplayViewer.sln -c Release --nologo
+      # First, so a mismatch fails before the build rather than after it.
+      - name: Verify the tag matches the project version
+        run: |
+          $project = "src/ReplayViewer/ReplayViewer.csproj"
+          $version = (dotnet msbuild $project -getProperty:Version -nologo).Trim()
+          if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Tag $env:GITHUB_REF_NAME does not match project version v$version"
+          }
 
+      # No test step: the tagged commit is gated by CI, and scripts/sign-release.sh refuses to
+      # publish unless CI succeeded for this exact commit.
       - name: Install Inno Setup
         run: choco install innosetup --version=6.7.1 -y --no-progress
 
@@ -41,14 +49,6 @@ jobs:
           subject-path: |
             artifacts/installer/ReplayViewer-Setup-*.exe
             artifacts/ReplayViewer-win-x64-*.zip
-
-      - name: Verify the tag matches the project version
-        run: |
-          $project = "src/ReplayViewer/ReplayViewer.csproj"
-          $version = (dotnet msbuild $project -getProperty:Version -nologo).Trim()
-          if ($env:GITHUB_REF_TYPE -eq "tag" -and $env:GITHUB_REF_NAME -ne "v$version") {
-            throw "Tag $env:GITHUB_REF_NAME does not match project version v$version"
-          }
 
       # The release itself is published from the signing machine: the detached signature has to
       # be produced with a key that never reaches CI, and release assets are immutable once
