@@ -19,6 +19,7 @@ internal sealed class TrayApp : ApplicationContext
     private readonly System.Windows.Forms.Timer _timer = new();
     private UpdateChecker.Available? _available;
     private bool _checking;
+    private string? _notifiedVersion;
 
     public TrayApp(ListenerHost host)
     {
@@ -113,12 +114,17 @@ internal sealed class TrayApp : ApplicationContext
                 FileLog.Info($"update check: {_available.Version} available");
                 UpdateChecker.AvailableVersion = _available.Version;
                 _updateItem.Text = $"Update to {_available.Version}";
-                _icon.ShowBalloonTip(
-                    4000,
-                    "Replay Viewer",
-                    $"Version {_available.Version} is available. It installs the next time Replay Viewer starts.",
-                    ToolTipIcon.Info
-                );
+                // The check repeats every 6 hours and the app can run for days: say it once.
+                if (_notifiedVersion != _available.Version)
+                {
+                    _notifiedVersion = _available.Version;
+                    _icon.ShowBalloonTip(
+                        4000,
+                        "Replay Viewer",
+                        $"Version {_available.Version} is available. It installs the next time Replay Viewer starts.",
+                        ToolTipIcon.Info
+                    );
+                }
                 // Silent: fetch and verify it now so the next launch can apply it immediately.
                 if (!UpdateChecker.TryGetPending(out _, out _))
                 {

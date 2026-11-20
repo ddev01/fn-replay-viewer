@@ -168,11 +168,36 @@ internal static class UpdateChecker
         ZipFile.ExtractToDirectory(zipPath, directory, overwriteFiles: true);
         File.Delete(zipPath);
         File.Delete(zipPath + ".sig");
-        return Directory
-            .EnumerateFiles(directory, AppPaths.ExeFileName, SearchOption.AllDirectories)
-            .FirstOrDefault() ?? throw new FileNotFoundException(
-            $"Update package did not contain {AppPaths.ExeFileName}."
-        );
+        var exe =
+            Directory
+                .EnumerateFiles(directory, AppPaths.ExeFileName, SearchOption.AllDirectories)
+                .FirstOrDefault()
+            ?? throw new FileNotFoundException(
+                $"Update package did not contain {AppPaths.ExeFileName}."
+            );
+        VerifyPayloadVersion(exe, update.Version);
+        return exe;
+    }
+
+    /// <summary>
+    /// The signature covers the zip, not the tag it was published under, so an older signed build
+    /// republished under a newer tag would otherwise install as a downgrade.
+    /// </summary>
+    internal static void VerifyPayloadVersion(string exePath, string expectedVersion)
+    {
+        var raw = System.Diagnostics.FileVersionInfo.GetVersionInfo(exePath).FileVersion;
+        if (
+            !Version.TryParse(raw, out var actual)
+            || !Version.TryParse(expectedVersion, out var wanted)
+            || actual.Major != wanted.Major
+            || actual.Minor != wanted.Minor
+            || actual.Build != wanted.Build
+        )
+        {
+            throw new InvalidDataException(
+                $"Update package is version {raw}, not the released {expectedVersion}."
+            );
+        }
     }
 
     private static async Task DownloadAsync(
