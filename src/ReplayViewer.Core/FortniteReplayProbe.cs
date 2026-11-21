@@ -65,8 +65,9 @@ public sealed class FortniteReplayProbe
             try
             {
                 CreativeGameState.Register();
-                var reader = new ReplayReader(parseMode: mode);
+                var reader = new NamedReplayReader(mode);
                 var replay = Read(reader, path);
+                reader.ApplyNames();
                 if (HasPlayersAndEvents(replay))
                 {
                     chosen = replay;
