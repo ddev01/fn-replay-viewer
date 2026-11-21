@@ -182,6 +182,113 @@ test("the demos menu is a labelled icon button that opens the panel", async ({ p
   await expect(page.locator("#demos-panel")).toBeVisible();
 });
 
+test("the filter, selection and confirm tools start folded away", async ({ page }) => {
+  await page.getByRole("button", { name: "Demos" }).click();
+  await expect(page.locator("#demos li")).toHaveCount(2);
+  for (const id of ["demos-filters", "demos-select-bar", "demos-confirm", "filter-accounts"]) {
+    await expect(page.locator("#" + id)).toBeHidden();
+  }
+});
+
+test("a cold start opens the newest replay the sidebar lists", async ({ page }) => {
+  await page.route("**/api/match", (route) => route.fulfill({ status: 404, body: "" }));
+  let asked = null;
+  await page.route("**/api/scrape", (route) => {
+    asked = route.request().postDataJSON().path;
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(match) });
+  });
+  await page.goto("about:blank");
+  await page.goto("/");
+  await expect(page.locator("#roster .team")).toHaveCount(2);
+  expect(asked).toBe(demos[0].path);
+});
+
+test("a switched-off account is masked, filtered out, remembered, and revealed only on confirm", async ({
+  page,
+}) => {
+  const mine = { ...demos[0], accountId: "main", accountName: "TTV Main" };
+  const alt = { ...demos[1], accountId: "alt", accountName: "Secret Alt" };
+  await page.route("**/api/demos", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ demos: [mine, alt], backfill: false }),
+    })
+  );
+  await page.reload();
+  await page.getByRole("button", { name: "Demos" }).click();
+  await page.locator("#toggle-filters").click();
+  await page.locator("#toggle-accounts").click();
+
+  const rows = page.locator("#account-list .account");
+  await expect(rows).toHaveCount(2);
+  await expect(page.locator("#account-list")).not.toContainText("Secret Alt");
+  await expect(page.locator("#account-list")).not.toContainText("TTV Main");
+
+  // Switching an account off hides its replays, and survives a reload.
+  await page.locator('input[data-account="alt"]').uncheck();
+  await expect(page.locator("#demos li")).toHaveCount(1);
+  await page.reload();
+  await page.getByRole("button", { name: "Demos" }).click();
+  await expect(page.locator("#demos li")).toHaveCount(1);
+
+  // The name appears only after the confirmation.
+  await page.locator("#toggle-filters").click();
+  await page.locator("#toggle-accounts").click();
+  await page.locator('[data-eye="main"]').click();
+  await expect(page.locator("#account-confirm")).toBeVisible();
+  await expect(page.locator("#account-list")).not.toContainText("TTV Main");
+  await page.locator("#account-confirm-yes").click();
+  await expect(page.locator("#account-list")).toContainText("TTV Main");
+
+  // Closing the panel masks it again.
+  await page.locator("#close-demos").click();
+  await page.getByRole("button", { name: "Demos" }).click();
+  await page.locator("#toggle-filters").click();
+  await page.locator("#toggle-accounts").click();
+  await expect(page.locator("#account-list")).not.toContainText("TTV Main");
+});
+
+test("filters narrow the replay list and reset restores it", async ({ page }) => {
+  await page.getByRole("button", { name: "Demos" }).click();
+  await expect(page.locator("#demos li")).toHaveCount(2);
+  await page.locator("#toggle-filters").click();
+  await page.getByLabel("Solo").check();
+  await expect(page.locator("#demos li")).toHaveCount(0);
+  await expect(page.locator("#demos-none")).toBeVisible();
+  await expect(page.locator("#filter-count")).toHaveText("1");
+  await page.getByLabel("Duos").check();
+  await page.getByLabel("Solo").uncheck();
+  await expect(page.locator("#demos li")).toHaveCount(1);
+  await page.locator("#filters-reset").click();
+  await expect(page.locator("#demos li")).toHaveCount(2);
+});
+
+test("selected replays are deleted only after the warning is confirmed", async ({ page }) => {
+  let body = null;
+  await page.route("**/api/demos/delete", (route) => {
+    body = route.request().postDataJSON();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ deleted: body.names, failed: [] }),
+    });
+  });
+  await page.getByRole("button", { name: "Demos" }).click();
+  await page.getByRole("button", { name: "Select replays" }).click();
+  await page.getByLabel("Select all").check();
+  await expect(page.locator("#select-count")).toHaveText("2 selected");
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.locator("#confirm-text")).toContainText("inside Fortnite");
+
+  await page.locator("#confirm-no").click();
+  expect(body).toBeNull();
+
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("button", { name: "Yes, delete" }).click();
+  await expect.poll(() => body?.names.length).toBe(2);
+});
+
 test("a demo row puts kills and placement on the title line, right aligned", async ({ page }) => {
   await page.getByRole("button", { name: "Demos" }).click();
   const row = page.locator("#demos li").first();
@@ -410,4 +517,14 @@ test("a first scrape that fails shows an empty state with a way forward", async 
   await page.getByRole("button", { name: "Try again" }).click();
   await expect(page.locator("#roster .team")).toHaveCount(2);
   await expect(page.locator("#empty")).toBeHidden();
+});
+
+test("closing the sidebar leaves select mode", async ({ page }) => {
+  await page.getByRole("button", { name: "Demos" }).click();
+  await page.getByRole("button", { name: "Select replays" }).click();
+  await expect(page.locator("#demos-select-bar")).toBeVisible();
+  await page.locator("#close-demos").click();
+  await page.getByRole("button", { name: "Demos" }).click();
+  await expect(page.locator("#demos-select-bar")).toBeHidden();
+  await expect(page.locator("#demos .demo-check")).toHaveCount(0);
 });

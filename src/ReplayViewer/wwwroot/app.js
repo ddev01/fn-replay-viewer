@@ -2,7 +2,17 @@
 // Page bootstrap: scraping a replay, the URL, the update banner and event wiring. The match logic is
 // in model.js, rendering in view.js and the Demos panel in demos.js.
 import { $, $input, setPressed, showStatus, tabButtons } from "./dom.js";
-import { loadDemos, onOpenDemo, pageInDemos, refreshDemos, renderDemos, setDemosOpen } from "./demos.js";
+import {
+  initDemoTools,
+  isDemoNameHidden,
+  loadDemos,
+  newestOpenableDemo,
+  onOpenDemo,
+  pageInDemos,
+  refreshDemos,
+  renderDemos,
+  setDemosOpen,
+} from "./demos.js";
 import { idsEqual } from "./format.js";
 import { render, renderTimeline } from "./view.js";
 import { state } from "./state.js";
@@ -180,6 +190,7 @@ $("toggle-demos").addEventListener("click", () => setDemosOpen(!state.demosOpen)
 $("close-demos").addEventListener("click", () => setDemosOpen(false));
 $("demos-backdrop").addEventListener("click", () => setDemosOpen(false));
 $("demos-panel").addEventListener("scroll", pageInDemos);
+initDemoTools();
 [
   "hide-bots",
   "only-you",
@@ -213,35 +224,51 @@ document.addEventListener("keydown", () => refreshDemos(false));
 fetch("/api/config")
   .then((res) => (res.ok ? res.json() : null))
   .then((/** @type {ApiConfig | null} */ cfg) => {
+    // A local dev build says so on the page, so it is never mistaken for the release.
+    if (cfg && cfg.dev) {
+      $("dev-badge").hidden = false;
+      $("dev-badge").textContent = `DEV ${cfg.version}`;
+      document.title = "Replay Viewer (dev)";
+    }
     if (cfg && cfg.nameFnPublicUrl) state.nameFnPublicUrl = String(cfg.nameFnPublicUrl).replace(/\/$/, "");
   })
   .catch(() => {
     /* config is optional: no NameFN links when the endpoint is down */
   });
-loadDemos();
+const firstLoad = loadDemos();
 loadUpdateBanner();
 // Show what the server already has, so reloading stays on the same replay. The URL wins when it
-// names a replay: that covers a browser restart, where the server has nothing cached yet. Only
-// when neither exists does the page pick the newest finished replay by itself.
-fetch("/api/match")
-  .then((res) => (res.ok ? res.json() : null))
-  .then((/** @type {MatchDocument | null} */ match) => {
-    if (match) {
-      state.match = match;
-      state.currentFile = match.sourceFile || null;
-      render();
-      renderDemos();
-    }
-    const wanted = replayFromUrl();
-    if (match && (!wanted || idsEqual(match.sourceFile, wanted))) {
-      setReplayUrl(state.currentFile);
-      return undefined;
-    }
-
-    return scrape(wanted || "");
-  })
-  .catch(() => {
-    /* the listener is gone; scrape() already reports that on the status line */
-  });
+// names a replay: that covers a browser restart, where the server has nothing cached yet. With
+// neither, open the newest replay the sidebar lists: the server's own pick only looks at files in
+// the Demos folder, so it fails when the listed replays are cached copies of deleted files.
+// Anything from an account the user switched off is skipped, so it can never be what shows first.
+async function start() {
+  const res = await fetch("/api/match");
+  /** @type {MatchDocument | null} */
+  const last = res.ok ? await res.json() : null;
+  await firstLoad;
+  const match = last && !isDemoNameHidden(last.sourceFile) ? last : null;
+  let wanted = replayFromUrl();
+  if (wanted && isDemoNameHidden(wanted)) {
+    wanted = null;
+    setReplayUrl(null);
+  }
+  if (match) {
+    state.match = match;
+    state.currentFile = match.sourceFile || null;
+    render();
+    renderDemos();
+  }
+  if (match && (!wanted || idsEqual(match.sourceFile, wanted))) {
+    setReplayUrl(state.currentFile);
+    return undefined;
+  }
+  if (wanted) return scrape(wanted);
+  const newest = newestOpenableDemo();
+  return newest ? scrape(newest.path, newest.name) : scrape("");
+}
+start().catch(() => {
+  /* the listener is gone; scrape() already reports that on the status line */
+});
 
 window.addEventListener("popstate", () => scrape(replayFromUrl() || ""));

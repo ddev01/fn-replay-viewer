@@ -130,16 +130,23 @@ public sealed record DemoListItem(
     int? Elims = null,
     bool Cached = false,
     int? TotalPlayers = null,
-    bool Unreadable = false
+    bool Unreadable = false,
+    string? AccountId = null,
+    string? AccountName = null
 );
 
 public sealed record ScrapeResult(MatchDocument Match, bool Cached);
+
+/// <summary>Names removed (replay file and cached copy) and names that could not be.</summary>
+public sealed record DeleteResult(IReadOnlyList<string> Deleted, IReadOnlyList<string> Failed);
 
 public interface IMatchScraper
 {
     bool BackfillRunning { get; }
 
     IReadOnlyList<DemoListItem> ListDemos();
+
+    DeleteResult DeleteDemos(IReadOnlyList<string> names);
 
     Task<ScrapeResult> ScrapeAsync(string? replayPath, CancellationToken cancellationToken);
 

@@ -23,7 +23,24 @@ public sealed class MatchCacheIndexTests : IDisposable
         Assert.Equal(3, entry.Placement);
         Assert.Equal(6, entry.Elims);
         Assert.Equal(1, entry.TotalPlayers);
+        Assert.Equal("a", entry.AccountId);
+        Assert.Equal("A", entry.AccountName);
         Assert.False(entry.Failed);
+    }
+
+    [Fact]
+    public void An_account_can_be_added_to_an_entry_without_touching_its_summary()
+    {
+        var replay = Replay();
+        var index = new MatchCacheIndex(_directory);
+        index.Save(replay, "key1", Match() with { Teams = [] });
+        Assert.Null(index.Get(replay, "key1")?.AccountId);
+
+        index.UpdateAccount("a.replay", MatchCacheIndex.AccountOf(Match()));
+
+        var entry = new MatchCacheIndex(_directory).Get(replay, "key1");
+        Assert.Equal("a", entry?.AccountId);
+        Assert.Equal(500, entry?.DurationSeconds);
     }
 
     [Fact]

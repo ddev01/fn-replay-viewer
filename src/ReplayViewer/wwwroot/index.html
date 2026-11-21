@@ -11,10 +11,141 @@
     <p id="status" class="status" role="status" hidden></p>
     <div id="demos-backdrop" class="demos-backdrop" hidden></div>
     <aside id="demos-panel" class="demos-panel" role="dialog" aria-modal="true" aria-label="Demos" hidden>
+      <!-- One sticky block: the buttons and whatever they open stay in view while the list scrolls. -->
+      <div class="demos-top">
       <div class="demos-head">
-        <h2>Demos</h2>
-        <button id="close-demos" type="button" class="ghost">Close</button>
+        <h2>Demos <span id="demos-count" class="demos-count"></span></h2>
+        <div class="demos-actions">
+          <button
+            id="toggle-filters"
+            type="button"
+            class="icon-btn"
+            aria-expanded="false"
+            aria-controls="demos-filters"
+            aria-label="Filters"
+            title="Filters"
+          >
+            <!-- Sidebar icons: Font Awesome Free 7.3.1 (Icons: CC BY 4.0), https://fontawesome.com/license/free -->
+            <svg class="solid" viewBox="0 0 640 640" aria-hidden="true" focusable="false">
+              <path d="M96 128C78.3 128 64 142.3 64 160C64 177.7 78.3 192 96 192L182.7 192C195 220.3 223.2 240 256 240C288.8 240 317 220.3 329.3 192L544 192C561.7 192 576 177.7 576 160C576 142.3 561.7 128 544 128L329.3 128C317 99.7 288.8 80 256 80C223.2 80 195 99.7 182.7 128L96 128zM96 288C78.3 288 64 302.3 64 320C64 337.7 78.3 352 96 352L342.7 352C355 380.3 383.2 400 416 400C448.8 400 477 380.3 489.3 352L544 352C561.7 352 576 337.7 576 320C576 302.3 561.7 288 544 288L489.3 288C477 259.7 448.8 240 416 240C383.2 240 355 259.7 342.7 288L96 288zM96 448C78.3 448 64 462.3 64 480C64 497.7 78.3 512 96 512L150.7 512C163 540.3 191.2 560 224 560C256.8 560 285 540.3 297.3 512L544 512C561.7 512 576 497.7 576 480C576 462.3 561.7 448 544 448L297.3 448C285 419.7 256.8 400 224 400C191.2 400 163 419.7 150.7 448L96 448z" />
+            </svg>
+            <span id="filter-count" class="filter-badge" hidden></span>
+          </button>
+          <button
+            id="toggle-select"
+            type="button"
+            class="icon-btn"
+            aria-pressed="false"
+            aria-label="Select replays"
+            title="Select replays"
+          >
+            <svg class="solid" viewBox="0 0 448 512" aria-hidden="true" focusable="false">
+              <path d="M384 32c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96C0 60.7 28.7 32 64 32l320 0zM342 145.7c-10.7-7.8-25.7-5.4-33.5 5.3L189.1 315.2 137 263.1c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l72 72c5 5 11.9 7.5 18.8 7s13.4-4.1 17.5-9.8L347.3 179.2c7.8-10.7 5.4-25.7-5.3-33.5z" />
+            </svg>
+          </button>
+          <button id="close-demos" type="button" class="icon-btn" aria-label="Close" title="Close">
+            <svg class="solid" viewBox="0 0 640 640" aria-hidden="true" focusable="false">
+              <path d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z" />
+            </svg>
+          </button>
+        </div>
       </div>
+
+      <div id="demos-select-bar" class="select-bar" hidden>
+        <label class="check-label"><input type="checkbox" id="select-all" class="check" /><span>Select all</span></label>
+        <span id="select-count" class="select-count" role="status"></span>
+        <button id="delete-selected" type="button" class="btn danger small" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" />
+          </svg>
+          Delete
+        </button>
+      </div>
+      <div id="demos-confirm" class="confirm-sheet" role="alertdialog" aria-labelledby="confirm-text" hidden>
+        <p id="confirm-text"></p>
+        <div class="confirm-actions">
+          <button id="confirm-no" type="button" class="btn">No</button>
+          <button id="confirm-yes" type="button" class="btn danger solid">Yes, delete</button>
+        </div>
+      </div>
+
+
+      <div id="demos-filters" class="demos-filters" hidden>
+        <div class="filters-top">
+          <span class="filters-title">Filters</span>
+          <button
+            id="toggle-accounts"
+            type="button"
+            class="icon-btn small"
+            aria-expanded="false"
+            aria-controls="filter-accounts"
+            aria-label="Accounts"
+            title="Accounts"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 20c0-4 3.6-6 8-6s8 2 8 6" />
+            </svg>
+          </button>
+          <button id="filters-reset" type="button" class="link-btn">Reset</button>
+        </div>
+
+        <section id="filter-accounts" class="filter-accounts" aria-label="Accounts" hidden>
+          <p class="hint">Unchecked accounts stay hidden, even after a restart. Names stay masked until you reveal them.</p>
+          <div id="account-list" class="account-list"></div>
+          <div id="account-confirm" class="inline-confirm" role="alertdialog" aria-labelledby="account-confirm-text" hidden>
+            <p id="account-confirm-text">Show this account name on screen? Anyone watching could read it.</p>
+            <div class="confirm-actions">
+              <button id="account-confirm-no" type="button" class="btn small">Cancel</button>
+              <button id="account-confirm-yes" type="button" class="btn small solid">Show name</button>
+            </div>
+          </div>
+        </section>
+
+        <form id="filters-form" class="filters-form">
+          <fieldset class="group">
+            <legend>Mode</legend>
+            <div class="chips">
+              <label class="fchip"><input type="checkbox" data-filter="sizes" value="solo" /><span>Solo</span></label>
+              <label class="fchip"><input type="checkbox" data-filter="sizes" value="duos" /><span>Duos</span></label>
+              <label class="fchip"><input type="checkbox" data-filter="sizes" value="trios" /><span>Trios</span></label>
+              <label class="fchip"><input type="checkbox" data-filter="sizes" value="squads" /><span>Squads</span></label>
+            </div>
+          </fieldset>
+          <fieldset class="group">
+            <legend>Type</legend>
+            <div class="chips">
+              <label class="fchip"><input type="checkbox" data-filter="ranked" value="ranked" /><span>Ranked</span></label>
+              <label class="fchip"><input type="checkbox" data-filter="ranked" value="unranked" /><span>Unranked</span></label>
+              <label class="fchip"><input type="checkbox" data-filter="builds" value="build" /><span>Build</span></label>
+              <label class="fchip"><input type="checkbox" data-filter="builds" value="zerobuild" /><span>Zero build</span></label>
+            </div>
+          </fieldset>
+          <fieldset id="filter-maps-group" class="group" hidden>
+            <legend>Map</legend>
+            <div id="filter-maps" class="chips"></div>
+          </fieldset>
+          <fieldset class="group">
+            <legend>Date</legend>
+            <div class="pair">
+              <input type="date" id="filter-from" class="field" aria-label="From date" />
+              <span class="dash" aria-hidden="true">to</span>
+              <input type="date" id="filter-to" class="field" aria-label="To date" />
+            </div>
+          </fieldset>
+          <fieldset class="group">
+            <legend>Kills</legend>
+            <div class="pair">
+              <input type="number" id="filter-min-kills" class="field" min="0" inputmode="numeric" placeholder="Min" aria-label="Minimum kills" />
+              <span class="dash" aria-hidden="true">to</span>
+              <input type="number" id="filter-max-kills" class="field" min="0" inputmode="numeric" placeholder="Max" aria-label="Maximum kills" />
+            </div>
+          </fieldset>
+        </form>
+      </div>
+      </div>
+
+      <p id="demos-none" class="demos-none" hidden>No replays match these filters.</p>
       <ul id="demos"></ul>
     </aside>
     <main>
@@ -68,6 +199,7 @@
           <input type="checkbox" id="show-bots" />
           Show bots
         </label>
+        <span id="dev-badge" class="dev-badge" hidden></span>
       </div>
       <div id="roster" class="roster"></div>
       <section class="timelines" id="timeline-section">

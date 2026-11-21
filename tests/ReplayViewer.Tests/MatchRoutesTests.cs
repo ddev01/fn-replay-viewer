@@ -38,6 +38,24 @@ public sealed class MatchRoutesTests : IAsyncLifetime
     public async ValueTask DisposeAsync() => await _server.DisposeAsync();
 
     [Fact]
+    public async Task Post_delete_passes_the_names_on_and_rejects_a_bad_body()
+    {
+        using var ok = await PostTo("/api/demos/delete", "{\"names\":[\"a.replay\"]}");
+        using var bad = await PostTo("/api/demos/delete", "{\"names\":[1]}");
+
+        Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
+        Assert.Equal(["a.replay"], _scraper.Deleted);
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+    }
+
+    private async Task<HttpResponseMessage> PostTo(string path, string json) =>
+        await _server.Client.PostAsync(
+            _server.Url(path),
+            new StringContent(json, Encoding.UTF8, "application/json"),
+            TestContext.Current.CancellationToken
+        );
+
+    [Fact]
     public async Task Post_scrape_without_a_json_content_type_is_415()
     {
         using var response = await Post("hello", "text/plain");
@@ -330,6 +348,14 @@ public sealed class MatchRoutesTests : IAsyncLifetime
         public IReadOnlyList<DemoListItem> ListDemos() => [];
 
         public void StartBackfill() { }
+
+        public IReadOnlyList<string>? Deleted { get; private set; }
+
+        public DeleteResult DeleteDemos(IReadOnlyList<string> names)
+        {
+            Deleted = names;
+            return new DeleteResult(names, []);
+        }
 
         public Task<ScrapeResult> ScrapeAsync(
             string? replayPath,

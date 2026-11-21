@@ -16,7 +16,9 @@ public sealed record CachedMatch(
     int? Elims,
     int? TotalPlayers = null,
     bool Failed = false,
-    int Schema = 0
+    int Schema = 0,
+    string? AccountId = null,
+    string? AccountName = null
 );
 
 /// <summary>
@@ -30,7 +32,7 @@ public sealed class MatchCacheIndex
     /// Bumped when a saved summary field changes meaning, so entries written by an older build
     /// are rebuilt from the cached match instead of showing the old value.
     /// </summary>
-    public const int CurrentSchema = 5;
+    public const int CurrentSchema = 6;
 
     private const string IndexFileName = "index.json";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -81,6 +83,7 @@ public sealed class MatchCacheIndex
         {
             var you = match.Teams.SelectMany(t => t.Players).FirstOrDefault(p => p.IsYou);
             var players = match.Teams.Sum(t => t.Players.Count);
+            var account = AccountOf(match);
             Entries[replay.Name] = new CachedMatch(
                 replay.Name,
                 replay.Length,
@@ -95,9 +98,46 @@ public sealed class MatchCacheIndex
                 // which are wrong or missing in some replays.
                 you?.Kills ?? match.OwnerStats?.Eliminations,
                 players > 0 ? players : null,
-                Schema: CurrentSchema
+                Schema: CurrentSchema,
+                AccountId: account.Id,
+                AccountName: account.Name
             );
             WriteIndex();
+        }
+    }
+
+    /// <summary>
+    /// The recorder's account: what the sidebar filters on. The id is stable across a rename; the
+    /// name is only a fallback and the label. Null when the replay does not say who recorded it.
+    /// </summary>
+    public static (string? Id, string? Name) AccountOf(MatchDocument match)
+    {
+        ArgumentNullException.ThrowIfNull(match);
+
+        var you = match.Teams.SelectMany(t => t.Players).FirstOrDefault(p => p.IsYou);
+        return you is null ? (null, null) : ((you.EpicId ?? you.Name).ToLowerInvariant(), you.Name);
+    }
+
+    /// <summary>
+    /// Adds the account to an entry written before accounts were stored, without touching the
+    /// summary fields: a re-save from the cached match would lose what only the replay file knew.
+    /// </summary>
+    public void UpdateAccount(string name, (string? Id, string? Name) account)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        lock (_gate)
+        {
+            if (Entries.TryGetValue(name, out var entry))
+            {
+                Entries[name] = entry with
+                {
+                    AccountId = account.Id,
+                    AccountName = account.Name,
+                    Schema = CurrentSchema,
+                };
+                WriteIndex();
+            }
         }
     }
 
@@ -121,6 +161,20 @@ public sealed class MatchCacheIndex
         lock (_gate)
         {
             return Entries.Values.ToArray();
+        }
+    }
+
+    /// <summary>Forgets a replay, e.g. after the user deleted it.</summary>
+    public void Remove(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        lock (_gate)
+        {
+            if (Entries.Remove(name))
+            {
+                WriteIndex();
+            }
         }
     }
 

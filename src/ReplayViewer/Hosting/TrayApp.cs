@@ -44,7 +44,7 @@ internal sealed class TrayApp : ApplicationContext
 
         _icon = new NotifyIcon
         {
-            Text = "Replay Viewer " + AppConfig.Version,
+            Text = "Replay Viewer " + AppConfig.DisplayVersion,
             Icon = LoadIcon(),
             Visible = true,
         };
@@ -94,6 +94,13 @@ internal sealed class TrayApp : ApplicationContext
 
     private async Task CheckAsync(bool manual)
     {
+        if (AppConfig.IsDev)
+        {
+            _updateItem.Text = $"Dev build {AppConfig.DisplayVersion} (updates off)";
+            _updateItem.Enabled = false;
+            return;
+        }
+
         if (_checking)
         {
             return;

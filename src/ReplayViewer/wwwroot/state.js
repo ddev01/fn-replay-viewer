@@ -1,5 +1,6 @@
 // @ts-check
 // The one mutable object the page runs on, and the two selection helpers that change it.
+import { emptyFilters, loadHiddenAccounts } from "./demo-filter.js";
 
 /**
  * @type {{
@@ -19,7 +20,12 @@
  *   loadingDemos: boolean,
  *   lastDemosRefresh: number,
  *   demosShown: number,
- *   demosSignature: string
+ *   demosSignature: string,
+ *   filters: import("./demo-filter.js").DemoFilters,
+ *   visibleDemos: DemoListItem[],
+ *   selecting: boolean,
+ *   selected: Set<string>,
+ *   demosRev: number
  * }}
  */
 export const state = {
@@ -40,6 +46,11 @@ export const state = {
   lastDemosRefresh: 0,
   demosShown: 0,
   demosSignature: "",
+  filters: { ...emptyFilters(), hiddenAccounts: loadHiddenAccounts() },
+  visibleDemos: [],
+  selecting: false,
+  selected: new Set(),
+  demosRev: 0,
 };
 
 /**

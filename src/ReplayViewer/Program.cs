@@ -55,7 +55,8 @@ internal static class Program
         // updating never interrupts a session. The payload's --install relaunches the app.
         var installed = AppPaths.Default.InstalledExePath;
         if (
-            string.Equals(Environment.ProcessPath, installed, StringComparison.OrdinalIgnoreCase)
+            !AppConfig.IsDev
+            && string.Equals(Environment.ProcessPath, installed, StringComparison.OrdinalIgnoreCase)
             && UpdateChecker.TryGetPending(out var pendingVersion, out var pendingExe)
         )
         {

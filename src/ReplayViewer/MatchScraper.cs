@@ -95,12 +95,54 @@ internal sealed class MatchScraper : IMatchScraper
                     entry.Placement,
                     entry.Elims,
                     Cached: true,
-                    TotalPlayers: entry.TotalPlayers
+                    TotalPlayers: entry.TotalPlayers,
+                    AccountId: entry.AccountId,
+                    AccountName: entry.AccountName
                 )
             );
         }
 
         return replays.OrderByDescending(replay => replay.LastWriteUtc).ToArray();
+    }
+
+    /// <summary>
+    /// Deletes the replay file from the Demos folder and its cached match. This is the only place
+    /// the app writes to Demos, and only for names the user picked. A file Fortnite still holds
+    /// open fails and keeps its cache so the replay stays listed.
+    /// </summary>
+    public DeleteResult DeleteDemos(IReadOnlyList<string> names)
+    {
+        var root = Path.GetFullPath(_demos);
+        var deleted = new List<string>();
+        var failed = new List<string>();
+        foreach (var name in names.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var full = ReplayPaths.ResolveInside(root, name);
+                // Top level only, like the list: a nested path is never a listed replay.
+                if (!string.Equals(Path.GetDirectoryName(full), root.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidReplayPathException("Replay path is not in the Demos folder.");
+                }
+
+                File.Delete(full);
+                var key = _index.CacheKeyFor(name);
+                if (key is not null)
+                {
+                    MatchCache.Delete(_cacheRoot, key);
+                }
+
+                _index.Remove(name);
+                deleted.Add(name);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidReplayPathException)
+            {
+                failed.Add(name);
+            }
+        }
+
+        return new DeleteResult(deleted, failed);
     }
 
     public async Task<ScrapeResult> ScrapeAsync(
@@ -184,8 +226,29 @@ internal sealed class MatchScraper : IMatchScraper
         }
     }
 
+    /// <summary>
+    /// Entries written before accounts were stored get theirs from the cached match, for replays
+    /// still on disk and for ones Fortnite already deleted alike, so nothing is re-parsed.
+    /// </summary>
+    private void RefreshAccounts()
+    {
+        foreach (var entry in _index.All())
+        {
+            if (entry.Failed || entry.CacheKey is null || entry.Schema != MatchCacheIndex.CurrentSchema - 1)
+            {
+                continue;
+            }
+
+            if (MatchCache.TryRead(_cacheRoot, entry.CacheKey, out var cached) && cached is not null)
+            {
+                _index.UpdateAccount(entry.Name, MatchCacheIndex.AccountOf(cached));
+            }
+        }
+    }
+
     private async Task BackfillAsync()
     {
+        RefreshAccounts();
         var replays = DemoCatalog.ListAll(_demos).Take(BackfillTake).ToArray();
         if (replays.Length == 0)
         {
@@ -410,6 +473,8 @@ internal sealed class MatchScraper : IMatchScraper
             Placement = entry.Placement,
             Elims = entry.Elims,
             TotalPlayers = entry.TotalPlayers,
+            AccountId = entry.AccountId,
+            AccountName = entry.AccountName,
         };
     }
 

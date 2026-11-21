@@ -91,6 +91,8 @@ interface DemoListItem {
   cached: boolean;
   totalPlayers?: number;
   unreadable: boolean;
+  accountId?: string;
+  accountName?: string;
 }
 
 /** MatchRoutes.cs GET /api/demos */
@@ -114,4 +116,6 @@ interface ApiError {
 /** MatchRoutes.cs GET /api/config */
 interface ApiConfig {
   nameFnPublicUrl?: string;
+  version: string;
+  dev: boolean;
 }

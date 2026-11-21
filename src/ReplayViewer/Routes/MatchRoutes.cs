@@ -25,6 +25,7 @@ internal sealed class MatchRoutes : IHttpRoute
             [("GET", "/api/update")] = UpdateStatus,
             [("POST", "/api/update/apply")] = ApplyUpdate,
             [("GET", "/api/demos")] = Demos,
+            [("POST", "/api/demos/delete")] = DeleteDemos,
             [("POST", "/api/scrape")] = Scrape,
             [("GET", "/api/match")] = (context, _) => LastMatch(context, fileName: null),
             [("GET", "/api/match.json")] = (context, _) => LastMatch(context, fileName: "match.json"),
@@ -103,7 +104,15 @@ internal sealed class MatchRoutes : IHttpRoute
     }
 
     private static Task Config(HttpListenerContext context, CancellationToken cancellationToken) =>
-        HttpJson.WriteJsonAsync(context.Response, new { nameFnPublicUrl = AppConfig.NameFnPublicUrl });
+        HttpJson.WriteJsonAsync(
+            context.Response,
+            new
+            {
+                nameFnPublicUrl = AppConfig.NameFnPublicUrl,
+                version = AppConfig.DisplayVersion,
+                dev = AppConfig.IsDev,
+            }
+        );
 
     private static Task UpdateStatus(HttpListenerContext context, CancellationToken cancellationToken)
     {
@@ -167,6 +176,59 @@ internal sealed class MatchRoutes : IHttpRoute
         await HttpJson
             .WriteJsonAsync(context.Response, new { demos = _scraper.ListDemos(), backfill })
             .ConfigureAwait(false);
+    }
+
+    private async Task DeleteDemos(HttpListenerContext context, CancellationToken cancellationToken)
+    {
+        var request = context.Request;
+        var response = context.Response;
+
+        if (!(request.ContentType ?? "").StartsWith("application/json", StringComparison.OrdinalIgnoreCase))
+        {
+            await HttpJson.WriteErrorAsync(response, 415, "Expected JSON.").ConfigureAwait(false);
+            return;
+        }
+
+        var body = await ReadBodyAsync(request, cancellationToken).ConfigureAwait(false);
+        if (body is null)
+        {
+            await HttpJson.WriteErrorAsync(response, 413, "Request body is too large.").ConfigureAwait(false);
+            return;
+        }
+
+        using var doc = JsonDocument.Parse(body);
+        if (
+            doc.RootElement.ValueKind != JsonValueKind.Object
+            || !doc.RootElement.TryGetProperty("names", out var namesProp)
+            || namesProp.ValueKind != JsonValueKind.Array
+        )
+        {
+            await HttpJson.WriteErrorAsync(response, 400, "Expected {\"names\": [...]}.").ConfigureAwait(false);
+            return;
+        }
+
+        var names = new List<string>();
+        foreach (var item in namesProp.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(item.GetString()))
+            {
+                await HttpJson.WriteErrorAsync(response, 400, "Names must be strings.").ConfigureAwait(false);
+                return;
+            }
+
+            names.Add(item.GetString()!);
+        }
+
+        // Never delete under a scrape that may be reading the same file.
+        await ScrapeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await HttpJson.WriteJsonAsync(response, _scraper.DeleteDemos(names)).ConfigureAwait(false);
+        }
+        finally
+        {
+            ScrapeGate.Release();
+        }
     }
 
     private async Task Scrape(HttpListenerContext context, CancellationToken cancellationToken)

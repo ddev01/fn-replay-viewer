@@ -49,6 +49,20 @@ internal static class MatchCache
     public static bool Exists(string root, string key) =>
         File.Exists(Path.Combine(root, key + ".json.br"));
 
+    /// <summary>Removes one cached match; false when it could not be removed.</summary>
+    public static bool Delete(string root, string key)
+    {
+        try
+        {
+            File.Delete(Path.Combine(root, key + ".json.br"));
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     public static bool TryRead(string root, string key, out MatchDocument? match)
     {
         match = null;

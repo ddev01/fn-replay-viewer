@@ -40,6 +40,27 @@ public sealed class MatchScraperTests : IDisposable
     }
 
     [Fact]
+    public async Task Deleting_a_replay_removes_the_file_its_cache_and_its_listing()
+    {
+        var path = WriteReplay("gone.replay");
+        var other = WriteReplay("kept.replay");
+        var scraper = NewScraper();
+        await scraper.ScrapeAsync(path, TestContext.Current.CancellationToken);
+
+        var key = _index.CacheKeyFor("gone.replay")!;
+        Assert.True(MatchCache.Exists(_cache, key));
+
+        var result = scraper.DeleteDemos(["gone.replay", "../escape.replay"]);
+
+        Assert.Equal(["gone.replay"], result.Deleted);
+        Assert.Equal(["../escape.replay"], result.Failed);
+        Assert.False(File.Exists(path));
+        Assert.True(File.Exists(other));
+        Assert.False(MatchCache.Exists(_cache, key));
+        Assert.DoesNotContain(scraper.ListDemos(), d => d.Name == "gone.replay");
+    }
+
+    [Fact]
     public async Task A_replay_the_parser_stalls_on_is_refused_without_parsing_again()
     {
         var path = WriteReplay("stall.replay");
