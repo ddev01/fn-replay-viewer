@@ -26,7 +26,8 @@ public sealed record ParsedReplaySnapshot(
     IReadOnlyList<TeamSnapshot> Teams,
     IReadOnlyList<EventSnapshot> Events,
     double? DurationSeconds = null,
-    bool IsCreative = false
+    bool IsCreative = false,
+    string? GameSessionId = null
 );
 
 public sealed record OwnerStatsSnapshot(
@@ -80,7 +81,8 @@ public sealed record MatchDocument(
     IReadOnlyList<TeamRoster> Teams,
     IReadOnlyList<MatchEvent> Events,
     double? DurationSeconds = null,
-    string? MapName = null
+    string? MapName = null,
+    string? GameSessionId = null
 );
 
 public sealed record TeamRoster(

@@ -269,7 +269,8 @@ public sealed class FortniteReplayProbe
             teams,
             events,
             replay.Info?.LengthInMs is uint ms ? ms / 1000.0 : null,
-            IsCreative(replay)
+            IsCreative(replay),
+            replay.GameData?.GameSessionId
         );
     }
 

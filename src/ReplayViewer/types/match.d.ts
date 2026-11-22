@@ -74,6 +74,7 @@ interface MatchDocument {
   events: MatchEvent[];
   durationSeconds?: number;
   mapName?: string;
+  gameSessionId?: string;
 }
 
 /** MatchTypes.cs: DemoListItem */

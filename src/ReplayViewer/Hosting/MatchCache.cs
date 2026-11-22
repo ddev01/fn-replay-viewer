@@ -17,7 +17,7 @@ internal static class MatchCache
     // shortcut: a manual constant. The assembly's ModuleVersionId looked automatic but changes on
     // every build (version and commit hash are compiled in), so every release dropped the cache.
     // Upgrade to a hash of the parsing sources if a forgotten bump ever serves stale matches.
-    private const int FormatVersion = 4;
+    private const int FormatVersion = 5;
     private const int KeepFiles = 200;
 
     // Identifies the code that turns a replay into a MatchDocument; the parser package version
