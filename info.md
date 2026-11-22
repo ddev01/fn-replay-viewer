@@ -26,7 +26,7 @@ over loopback.
 - Lives entirely in the tray: **Open**, **Check for updates**, **Start with Windows**, **Exit**.
 
 It never writes to the Demos folder. Replays are opened read-only and copied to `%TEMP%` before
-parsing. The only network traffic is the GitHub update check.
+parsing. The only network traffic is the GitHub update check, plus optional owner-only linking when configured.
 
 ---
 

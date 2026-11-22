@@ -170,7 +170,8 @@ refuses cross-site browser requests (403).
 |---|---|---|
 | GET | `/` | The UI (`index.html`) |
 | GET | `/*.js`, `*.css`, `*.svg`, `*.ico` | Static files from `wwwroot` |
-| GET | `/api/config` | `{ nameFnPublicUrl }` — drives the NameFN button |
+| GET | `/api/config` | `{ nameFnPublicUrl, version, dev, linking }` — drives the NameFN button and, when `linking` is true, the linking UI |
+| GET, POST, DELETE | `/api/linking/*` | Owner-only streamer linking, only when `linking.json` is valid (else 404): `lookups`, `replay`, `links` (POST and DELETE), `rejections`. Each forwards to the matching `/api/viewer/*` endpoint of the configured server with `X-Viewer-Token`; the browser never sees the token. Upstream failures come back as `{ error }`. |
 | GET | `/api/demos` | `{ demos, backfill }`: every replay in the Demos folder, plus cached matches whose file is gone: name, path, size, last write, cached metadata |
 | POST | `/api/scrape` | Body `{ "path": "..." }` (or `{}` for the newest). Returns the match. |
 | GET | `/api/match` | The last match served by this process, or 404 |
@@ -362,7 +363,7 @@ longer parses. Re-measure before relying on them.
 | After a parse | 0.000 % | heap trimmed: `GC.Collect` + LOH compaction |
 
 No disk writes, no network and no thread activity while idle; the only scheduled work is the
-6-hour update check.
+6-hour update check. Linking (when configured) only talks to its server when the owner opens a replay or the sidebar.
 
 ---
 

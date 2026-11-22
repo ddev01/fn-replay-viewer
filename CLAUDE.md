@@ -25,5 +25,5 @@ After any change to app code (`src/`, `wwwroot`), once checks pass, run `pwsh sc
 - NuGet restore is locked (`packages.lock.json`): adding or updating a package means regenerating the lock files.
 - Coverage floor is 63% line / 61% branch. Two tests in `FortniteReplayProbeTests` skip without a real replay in the Demos folder; that's expected.
 - Never write to the Demos folder: replays are opened read-only with shared access and parsed in place by a child process. The one exception is `MatchScraper.DeleteDemos`, only for names the user picked and confirmed in the sidebar.
-- Only network traffic is the GitHub update check. ("Scrape" in `MatchScraper.cs` means parsing a replay, not web scraping.)
+- Only network traffic is the GitHub update check, plus optional owner-only linking when `%LOCALAPPDATA%\ReplayViewer\linking.json` exists (`Routes/LinkingRoutes.cs`, `wwwroot/linking*.js`; never commit a real host or token). ("Scrape" in `MatchScraper.cs` means parsing a replay, not web scraping.)
 - Don't read `artifacts/`, `test-results/`, `node_modules/`, `bin/`, `obj/` or lock files unless the task is about them.
