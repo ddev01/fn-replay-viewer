@@ -9,11 +9,13 @@ import {
   newestOpenableDemo,
   onOpenDemo,
   pageInDemos,
+  refreshDemoFlags,
   refreshDemos,
   renderDemos,
   setDemosOpen,
 } from "./demos.js";
 import { idsEqual } from "./format.js";
+import { closeLinkDialog, loadReplayLinks, renderLinkInfo } from "./linking.js";
 import { render, renderTimeline } from "./view.js";
 import { state } from "./state.js";
 
@@ -101,6 +103,8 @@ async function scrape(path, name, push) {
     const cached = res.headers.get("x-replay-cached") === "1";
     showStatus(cached ? "" : "Done", cached ? undefined : 2500);
     state.match = /** @type {MatchDocument} */ (data);
+    state.linkData = null;
+    closeLinkDialog();
     state.currentFile = state.match.sourceFile || name || null;
     state.focusTeam = null;
     state.focusPlayerId = null;
@@ -109,6 +113,7 @@ async function scrape(path, name, push) {
     render();
     renderDemos();
     loadDemos();
+    linkReplay(state.match);
   } catch {
     // The app exited or the listener is gone; leaving "Scraping…" up would be a lie.
     showStatus("Could not reach Replay Viewer.");
@@ -119,6 +124,18 @@ async function scrape(path, name, push) {
     const next = queuedScrape;
     queuedScrape = null;
     if (next) scrape(next.path, next.name, next.push);
+  }
+}
+
+/**
+ * With linking on, asks once what is known about this replay's players and redraws their rows.
+ * @param {MatchDocument} match
+ */
+async function linkReplay(match) {
+  if (!state.linking) return;
+  if (await loadReplayLinks(match)) {
+    renderLinkInfo();
+    refreshDemoFlags();
   }
 }
 
@@ -231,6 +248,14 @@ fetch("/api/config")
       document.title = "Replay Viewer (dev)";
     }
     if (cfg && cfg.nameFnPublicUrl) state.nameFnPublicUrl = String(cfg.nameFnPublicUrl).replace(/\/$/, "");
+    // The roster may already be on screen without the pencils, so draw it again.
+    if (cfg && cfg.linking === true) {
+      state.linking = true;
+      if (state.match) {
+        render();
+        linkReplay(state.match);
+      }
+    }
   })
   .catch(() => {
     /* config is optional: no NameFN links when the endpoint is down */
@@ -258,6 +283,7 @@ async function start() {
     state.currentFile = match.sourceFile || null;
     render();
     renderDemos();
+    linkReplay(match);
   }
   if (match && (!wanted || idsEqual(match.sourceFile, wanted))) {
     setReplayUrl(state.currentFile);

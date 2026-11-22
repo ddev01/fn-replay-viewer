@@ -12,6 +12,7 @@ import {
 } from "./demo-filter.js";
 import { $, showStatus } from "./dom.js";
 import { prettyPlaylist } from "./format.js";
+import { demoFlag, fetchLookups } from "./linking.js";
 import { themedIcon } from "./markup.js";
 import { state } from "./state.js";
 
@@ -40,6 +41,7 @@ export function setDemosOpen(open) {
   /** @type {HTMLElement} */ (document.querySelector("main")).inert = open;
   if (open) {
     loadDemos();
+    if (state.linking) loadLinkFlags();
     // The rows rendered while the panel was hidden could not measure it.
     fillDemos();
     $("close-demos").focus();
@@ -148,7 +150,7 @@ function demoSignature() {
   const shown = state.visibleDemos;
   return `${shown.length}|${shown[0]?.name ?? ""}|${state.currentFile ?? ""}|${
     shown.filter((demo) => demo.cached).length
-  }|${state.demosRev}`;
+  }|${state.demosRev}|${state.linking}`;
 }
 
 /**
@@ -192,6 +194,8 @@ function demoRow(demo) {
   title.classList.add("demo-title");
   title.textContent = demoTitle(demo);
   row.append(title);
+  const flag = demoFlag(demo);
+  if (flag) row.append(flag);
   if (demo.unreadable) row.append(demoHelp());
   row.append(demoScore(demo));
   const meta = document.createElement("div");
@@ -267,6 +271,18 @@ export function renderDemos() {
   appendDemos(target);
   fillDemos();
   panel.scrollTop = scroll;
+}
+
+/** The sidebar marks come from the lookup list; asked each time the panel opens, never kept. */
+async function loadLinkFlags() {
+  state.lookups = await fetchLookups();
+  refreshDemoFlags();
+}
+
+/** Redraws the rows after the flags changed. */
+export function refreshDemoFlags() {
+  state.demosRev += 1;
+  renderDemos();
 }
 
 export async function loadDemos() {
