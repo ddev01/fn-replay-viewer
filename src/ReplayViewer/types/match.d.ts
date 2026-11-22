@@ -119,4 +119,6 @@ interface ApiConfig {
   nameFnPublicUrl?: string;
   version: string;
   dev: boolean;
+  /** True only when linking.json is present and valid; gates every linking element. */
+  linking: boolean;
 }

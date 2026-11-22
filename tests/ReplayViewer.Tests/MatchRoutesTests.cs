@@ -176,6 +176,38 @@ public sealed class MatchRoutesTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Get_config_reports_linking_only_when_it_is_configured()
+    {
+        using var off = await _server.Client.GetAsync(
+            _server.Url("/api/config"),
+            TestContext.Current.CancellationToken
+        );
+        Assert.Contains(
+            "\"linking\":false",
+            await off.Content.ReadAsStringAsync(TestContext.Current.CancellationToken),
+            StringComparison.Ordinal
+        );
+
+        var routes = new MatchRoutes(_scraper, linking: true);
+        await using var on = await LoopbackRoute.StartAsync(
+            async (context, cancellationToken) =>
+            {
+                await routes.HandleAsync(context, cancellationToken);
+                return true;
+            }
+        );
+        using var response = await on.Client.GetAsync(
+            on.Url("/api/config"),
+            TestContext.Current.CancellationToken
+        );
+        Assert.Contains(
+            "\"linking\":true",
+            await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken),
+            StringComparison.Ordinal
+        );
+    }
+
+    [Fact]
     public async Task Get_config_reports_the_name_fn_url()
     {
         using var response = await _server.Client.GetAsync(

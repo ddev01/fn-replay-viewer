@@ -11,14 +11,16 @@ internal sealed class MatchRoutes : IHttpRoute
     private static readonly object ApplyGate = new();
     private static MatchDocument? s_last;
     private readonly IMatchScraper _scraper;
+    private readonly bool _linking;
     private readonly StaticFiles _files = new();
     private readonly Dictionary<(string Method, string Path), Handler> _handlers;
 
     private delegate Task Handler(HttpListenerContext context, CancellationToken cancellationToken);
 
-    public MatchRoutes(IMatchScraper scraper)
+    public MatchRoutes(IMatchScraper scraper, bool linking = false)
     {
         _scraper = scraper;
+        _linking = linking;
         _handlers = new()
         {
             [("GET", "/api/config")] = Config,
@@ -103,7 +105,7 @@ internal sealed class MatchRoutes : IHttpRoute
         }
     }
 
-    private static Task Config(HttpListenerContext context, CancellationToken cancellationToken) =>
+    private Task Config(HttpListenerContext context, CancellationToken cancellationToken) =>
         HttpJson.WriteJsonAsync(
             context.Response,
             new
@@ -111,6 +113,7 @@ internal sealed class MatchRoutes : IHttpRoute
                 nameFnPublicUrl = AppConfig.NameFnPublicUrl,
                 version = AppConfig.DisplayVersion,
                 dev = AppConfig.IsDev,
+                linking = _linking,
             }
         );
 
@@ -336,7 +339,7 @@ internal sealed class MatchRoutes : IHttpRoute
         return total;
     }
 
-    private static async Task<string?> ReadBodyAsync(
+    internal static async Task<string?> ReadBodyAsync(
         HttpListenerRequest request,
         CancellationToken cancellationToken
     )
