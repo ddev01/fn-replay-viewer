@@ -863,7 +863,16 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
   color: var(--muted);
   font-size: 11px;
 }
-.lchip.link { border-color: var(--you); color: var(--you); }
+.link-icons { display: inline-flex; align-items: center; gap: 4px; }
+.link-icon {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  color: var(--text);
+}
+.link-icon svg { width: 16px; height: 16px; }
+.link-icon.twitch { color: #9146ff; }
+.link-icon:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .lchip.attempt.weak { border-color: var(--gold); color: var(--gold); }
 .lsrc { color: var(--muted); font-size: 11px; }
 .link-dialog {

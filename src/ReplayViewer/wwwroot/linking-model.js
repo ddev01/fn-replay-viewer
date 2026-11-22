@@ -41,6 +41,34 @@ export const platformName = (platform) => PLATFORMS[platform] ?? platform;
 /** @param {string} source */
 export const sourceName = (source) => SOURCES[source] ?? source;
 
+const HANDLE = /^[A-Za-z0-9_.]{1,40}$/;
+
+/**
+ * @param {string} platform
+ * @param {string} handle
+ * @returns {string | null} the channel/profile page, or null when the handle is not safe to link
+ */
+export function profileUrl(platform, handle) {
+  if (!HANDLE.test(handle)) return null;
+  if (platform === "twitch") return `https://www.twitch.tv/${handle}`;
+  if (platform === "tiktok") return `https://www.tiktok.com/@${handle}`;
+  return null;
+}
+
+/**
+ * @param {LinkingLink} link
+ * @returns {string} how the link came about, e.g. "Twitch: nova (manual)"
+ */
+export function linkTooltip(link) {
+  const how =
+    link.source === "clipper_manual"
+      ? "manual"
+      : link.source === "tracker_claimed"
+        ? "claimed on Tracker"
+        : "automatic";
+  return `${platformName(link.platform)}: ${link.handle} (${how})`;
+}
+
 /**
  * The sidebar only has the lookup list, so it guesses by time: the F9 roster is posted while the
  * match runs. Opening the replay replaces the guess with the server's own match.

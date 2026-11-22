@@ -57,7 +57,9 @@ test("with linking off there are no linking elements and no linking request", as
 
 test("opening a replay asks once and shows links and F9 attempts per player", async ({ page }) => {
   const calls = await open(page, { linking: true });
-  await expect(row(page, "Nova").locator(".lchip.link")).toHaveText(/Twitch nova\s+manual/);
+  const icon = row(page, "Nova").locator(".link-icon");
+  await expect(icon).toHaveCount(1);
+  await expect(icon).toHaveAttribute("aria-label", "Twitch: nova (manual)");
   await expect(row(page, "Bolt").locator(".lchip.attempt")).toHaveCount(2);
   await expect(row(page, "Bolt").locator(".lchip.attempt.weak")).toContainText(
     "Twitch bolt · stripped · exact · live · weak"
@@ -69,6 +71,76 @@ test("opening a replay asks once and shows links and F9 attempts per player", as
   expect(asked[0].body.played_at).toBe(Math.floor(Date.parse(match.recordedAt) / 1000));
   // Bots are never sent; the others go as the replay has them.
   expect(asked[0].body.epic_ids.sort()).toEqual([BOLT, ROOK, NOVA].sort());
+});
+
+const link = (platform, handle, source) => ({ platform, handle, platform_user_id: null, source });
+/** The replay response with Nova's links replaced. */
+const novaLinks = (...links) => ({
+  "POST /api/linking/replay": {
+    status: 200,
+    body: {
+      ...replay,
+      players: replay.players.map((p) => (p.epic_id === NOVA ? { ...p, links } : p)),
+    },
+  },
+});
+
+test("a Twitch link is one icon, to the right of the pencil, opening the channel", async ({ page }) => {
+  await open(page, { linking: true });
+  const nova = row(page, "Nova");
+  const icon = nova.getByRole("link", { name: "Twitch: nova (manual)" });
+  await expect(nova.locator(".link-icon")).toHaveCount(1);
+  await expect(icon).toHaveAttribute("href", "https://www.twitch.tv/nova");
+  await expect(icon).toHaveAttribute("target", "_blank");
+  await expect(icon).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(icon).toHaveAttribute("title", "Twitch: nova (manual)");
+  await expect(icon.locator("svg")).toBeVisible();
+  // The old pill line is gone, and the icon sits after the pencil.
+  await expect(nova.locator(".lchip.link, .lsrc")).toHaveCount(0);
+  const pencilBox = await pencil(page, "Nova").boundingBox();
+  const iconBox = await icon.boundingBox();
+  expect(iconBox.x).toBeGreaterThan(pencilBox.x + pencilBox.width - 1);
+  // Clicking the icon must not open the squad timeline behind it.
+  await icon.evaluate((a) => a.addEventListener("click", (e) => e.preventDefault()));
+  await icon.click();
+  await expect(nova).not.toHaveClass(/highlight/);
+});
+
+test("both platforms get an icon, source decides the tooltip", async ({ page }) => {
+  await open(page, {
+    linking: true,
+    overrides: novaLinks(link("tiktok", "nova.tt", "tracker_claimed"), link("twitch", "nova", "auto_f9")),
+  });
+  const icons = row(page, "Nova").locator(".link-icon");
+  await expect(icons).toHaveCount(2);
+  // Twitch first, whatever order the server sent.
+  await expect(icons.nth(0)).toHaveAttribute("aria-label", "Twitch: nova (automatic)");
+  await expect(icons.nth(1)).toHaveAttribute("aria-label", "TikTok: nova.tt (claimed on Tracker)");
+  await expect(icons.nth(1)).toHaveAttribute("href", "https://www.tiktok.com/@nova.tt");
+});
+
+test("a player with no link has no icon", async ({ page }) => {
+  await open(page, { linking: true });
+  await expect(row(page, "Bolt").locator(".link-icon")).toHaveCount(0);
+});
+
+test("a TikTok-only player has just the TikTok icon", async ({ page }) => {
+  await open(page, { linking: true, overrides: novaLinks(link("tiktok", "nova", "clipper_manual")) });
+  const icons = row(page, "Nova").locator(".link-icon");
+  await expect(icons).toHaveCount(1);
+  await expect(icons).toHaveAttribute("aria-label", "TikTok: nova (manual)");
+});
+
+test("an unsafe handle is shown as an icon without a link", async ({ page }) => {
+  await open(page, {
+    linking: true,
+    overrides: novaLinks(link("twitch", 'x"><img src=x onerror=alert(1)>', "clipper_manual")),
+  });
+  const icon = row(page, "Nova").locator(".link-icon");
+  await expect(icon).toHaveCount(1);
+  await expect(icon).toHaveJSProperty("tagName", "SPAN");
+  await expect(row(page, "Nova").locator(".link-icons a, .link-icons img")).toHaveCount(0);
+  await expect(icon).toHaveAttribute("aria-label", 'Twitch: x"><img src=x onerror=alert(1)> (manual)');
 });
 
 test("the sidebar marks replays with no streamer or only weak guesses", async ({ page }) => {
@@ -122,7 +194,10 @@ test("a pasted URL is saved and the row updates at once", async ({ page }) => {
 
   await expect(dialog.locator("#link-msg")).toHaveText("Saved Twitch bolt.");
   await expect(dialog.locator(".link-rows").first()).toContainText("bolt");
-  await expect(row(page, "Bolt").locator(".lchip.link")).toHaveText(/Twitch bolt\s+manual/);
+  await expect(row(page, "Bolt").locator(".link-icon.twitch")).toHaveAttribute(
+    "aria-label",
+    "Twitch: bolt (manual)"
+  );
   expect(calls.find((c) => c.key === "POST /api/linking/links").body).toEqual({
     epic_id: BOLT,
     url: "https://www.twitch.tv/Bolt",
@@ -149,7 +224,7 @@ test("a refused URL shows the server's message", async ({ page }) => {
     "Only twitch.tv/<login> and tiktok.com/@<handle> URLs work."
   );
   // Nothing was stored, and the text is shown as text, never parsed as markup.
-  await expect(row(page, "Bolt").locator(".lchip.link")).toHaveCount(0);
+  await expect(row(page, "Bolt").locator(".link-icon")).toHaveCount(0);
   await expect(dialog.locator("#link-msg *")).toHaveCount(0);
 });
 
@@ -159,7 +234,7 @@ test("a link can be deleted", async ({ page }) => {
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Delete Twitch link nova" }).click();
 
-  await expect(row(page, "Nova").locator(".lchip.link")).toHaveCount(0);
+  await expect(row(page, "Nova").locator(".link-icon")).toHaveCount(0);
   await expect(dialog).toContainText("No link yet.");
   expect(calls.find((c) => c.key === "DELETE /api/linking/links").body).toEqual({
     epic_id: NOVA,

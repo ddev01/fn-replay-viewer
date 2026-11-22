@@ -10,8 +10,10 @@ import {
   flagForDemo,
   flagText,
   indexPlayers,
+  linkTooltip,
   normId,
   platformName,
+  profileUrl,
   removeLink,
   replayRequest,
   searchUrl,
@@ -24,6 +26,13 @@ const LOOKUP_DAYS = 30;
 
 const PENCIL =
   '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>';
+// Brand glyphs from Simple Icons (https://simpleicons.org), CC0 1.0 licence.
+const BRAND_ICONS = /** @type {Record<string, string>} */ ({
+  twitch:
+    '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/></svg>',
+  tiktok:
+    '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>',
+});
 const BROADCAST =
   '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg>';
 
@@ -120,27 +129,39 @@ function entryFor(epicId) {
 
 /**
  * @param {string | null | undefined} epicId
- * @returns {string} chips for the player's links and F9 attempts
+ * @returns {string} chips for the player's F9 attempts
  */
 function linkInfoMarkup(epicId) {
-  const entry = entryFor(epicId);
-  if (!entry) return "";
-  const links = entry.links.map(
-    (l) =>
-      `<li class="lchip link">${escapeHtml(platformName(l.platform))} ${escapeHtml(l.handle)} <span class="lsrc">${escapeHtml(sourceName(l.source))}</span></li>`
-  );
-  const attempts = entry.attempts.map(
+  const items = (entryFor(epicId)?.attempts ?? []).map(
     (a) =>
       `<li class="lchip attempt${a.weak ? " weak" : ""}${a.status === "live" ? " live" : ""}">${escapeHtml(attemptText(a))}</li>`
   );
-  const items = links.concat(attempts);
-  return items.length
-    ? `<ul class="linkinfo-list" aria-label="Streamer links and F9 attempts">${items.join("")}</ul>`
-    : "";
+  return items.length ? `<ul class="linkinfo-list" aria-label="F9 attempts">${items.join("")}</ul>` : "";
 }
 
 /**
- * The pencil button and the slot for the player's links, for the roster row. Empty with linking off.
+ * @param {string | null | undefined} epicId
+ * @returns {string} one icon per linked platform, linking to the channel when the handle is safe
+ */
+function linkIconsMarkup(epicId) {
+  const links = entryFor(epicId)?.links ?? [];
+  return ["twitch", "tiktok"]
+    .map((platform) => links.find((l) => l.platform === platform))
+    .filter((l) => l !== undefined)
+    .map((l) => {
+      const text = escapeHtml(linkTooltip(l));
+      const url = profileUrl(l.platform, l.handle);
+      const attrs = `class="link-icon ${l.platform}" aria-label="${text}" title="${text}"`;
+      return url
+        ? `<a ${attrs} href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${BRAND_ICONS[l.platform]}</a>`
+        : `<span ${attrs} role="img">${BRAND_ICONS[l.platform]}</span>`;
+    })
+    .join("");
+}
+
+/**
+ * The pencil button, the platform icons and the slot for F9 attempts, for the roster row. Empty with
+ * linking off.
  * @param {RosterPlayer} player
  * @returns {{ button: string, slot: string }}
  */
@@ -148,7 +169,7 @@ export function linkingMarkup(player) {
   if (!state.linking || !player.epicId || player.isBot) return { button: "", slot: "" };
   const id = escapeHtml(normId(player.epicId));
   return {
-    button: `<button type="button" class="icon-btn small link-edit" aria-label="Streamer links for ${escapeHtml(player.name)}" title="Streamer links">${PENCIL}</button>`,
+    button: `<button type="button" class="icon-btn small link-edit" aria-label="Streamer links for ${escapeHtml(player.name)}" title="Streamer links">${PENCIL}</button><span class="link-icons" data-linkicons="${id}">${linkIconsMarkup(player.epicId)}</span>`,
     slot: `<div class="linkinfo" data-linkinfo="${id}">${linkInfoMarkup(player.epicId)}</div>`,
   };
 }
@@ -163,13 +184,18 @@ export function bindLinkEdit(row, player) {
     ev.stopPropagation();
     openLinkDialog(player);
   });
-  row.querySelector(".linkinfo")?.addEventListener("click", (ev) => ev.stopPropagation());
+  row.querySelectorAll(".linkinfo, .link-icons").forEach((el) => {
+    el.addEventListener("click", (ev) => ev.stopPropagation());
+  });
 }
 
-/** Redraws every player's links from the page state, without rebuilding the roster. */
+/** Redraws every player's icons and attempts from the page state, without rebuilding the roster. */
 export function renderLinkInfo() {
   document.querySelectorAll("[data-linkinfo]").forEach((node) => {
     node.innerHTML = linkInfoMarkup(/** @type {HTMLElement} */ (node).dataset.linkinfo);
+  });
+  document.querySelectorAll("[data-linkicons]").forEach((node) => {
+    node.innerHTML = linkIconsMarkup(/** @type {HTMLElement} */ (node).dataset.linkicons);
   });
 }
 

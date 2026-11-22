@@ -6,7 +6,9 @@ import {
   attemptText,
   flagForDemo,
   indexPlayers,
+  linkTooltip,
   normId,
+  profileUrl,
   removeLink,
   replayRequest,
   searchUrl,
@@ -80,4 +82,20 @@ test("search links are encoded and attempts read as a sentence", () => {
     }),
     "Twitch ttvbob · tag kept · exact · not found · weak"
   );
+});
+
+test("link tooltips say how the link was made", () => {
+  const t = (source) => linkTooltip({ platform: "tiktok", handle: "a.b", source });
+  assert.equal(t("clipper_manual"), "TikTok: a.b (manual)");
+  assert.equal(t("tracker_claimed"), "TikTok: a.b (claimed on Tracker)");
+  assert.equal(t("whatever"), "TikTok: a.b (automatic)");
+});
+
+test("profile links exist only for safe handles", () => {
+  assert.equal(profileUrl("twitch", "Nova_1"), "https://www.twitch.tv/Nova_1");
+  assert.equal(profileUrl("tiktok", "a.b"), "https://www.tiktok.com/@a.b");
+  assert.equal(profileUrl("twitch", "a/b"), null);
+  assert.equal(profileUrl("twitch", ""), null);
+  assert.equal(profileUrl("twitch", "a".repeat(41)), null);
+  assert.equal(profileUrl("youtube", "ok"), null);
 });
