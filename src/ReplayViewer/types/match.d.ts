@@ -74,6 +74,7 @@ interface MatchDocument {
   events: MatchEvent[];
   durationSeconds?: number;
   mapName?: string;
+  gameSessionId?: string;
 }
 
 /** MatchTypes.cs: DemoListItem */
@@ -118,4 +119,58 @@ interface ApiConfig {
   nameFnPublicUrl?: string;
   version: string;
   dev: boolean;
+  /** True only when linking.json is present and valid; gates every linking element. */
+  linking: boolean;
+}
+
+// Owner-only streamer linking. Source: the Replay Viewer API in the lobby-streamers contract
+// (section B), relayed unchanged by src/ReplayViewer/Routes/LinkingRoutes.cs. Snake_case is the
+// server's wire format; nothing here is built from a C# record.
+
+type LinkingFlag = "none_found" | "weak_only" | "ok";
+
+/** GET /api/linking/lookups: one entry of `lookups`. */
+interface LinkingLookup {
+  lookup_id: number;
+  session_id: string;
+  game_session_id: string | null;
+  received_at: number;
+  roster_size: number;
+  flag: LinkingFlag;
+  counts: { candidates: number; live: number; recorded: number; weak: number };
+}
+
+interface LinkingLink {
+  platform: string;
+  handle: string;
+  platform_user_id?: string | null;
+  source: string;
+}
+
+interface LinkingAttempt {
+  platform: string;
+  query: string;
+  /** Not in the contract yet: the handle the attempt resolved to, when it differs from `query`. */
+  handle?: string;
+  variant: string;
+  match: string;
+  status: string;
+  weak: boolean;
+  reason?: string | null;
+  /** Set by the page after a successful "wrong guess"; never sent by the server. */
+  rejected?: boolean;
+}
+
+interface LinkingPlayer {
+  epic_id: string;
+  name: string | null;
+  links: LinkingLink[];
+  attempts: LinkingAttempt[];
+}
+
+/** POST /api/linking/replay */
+interface LinkingReplay {
+  lookup: LinkingLookup | null;
+  match_basis: "session_id" | "epic_overlap" | "none";
+  players: LinkingPlayer[];
 }

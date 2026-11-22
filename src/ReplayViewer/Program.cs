@@ -80,7 +80,10 @@ internal static class Program
         );
         ApplicationConfiguration.Initialize();
         var scraper = new MatchScraper();
-        IHttpRoute[] routes = [new MatchRoutes(scraper)];
+        // Read once. Absent or invalid means linking is off: the routes 404 and nothing goes out.
+        var linking = LinkingConfig.Load(LinkingConfig.DefaultPath);
+        // LinkingRoutes first: MatchRoutes claims every /api/ path.
+        IHttpRoute[] routes = [new LinkingRoutes(linking), new MatchRoutes(scraper, linking is not null)];
         var host = new ListenerHost(routes);
         try
         {

@@ -5,4 +5,5 @@ export default {
   nameFnPublicUrl: "https://namefn.example",
   version: "1.0.11",
   dev: false,
+  linking: false,
 };

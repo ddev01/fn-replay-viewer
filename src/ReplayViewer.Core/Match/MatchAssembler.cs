@@ -105,7 +105,8 @@ public static class MatchAssembler
             events,
             duration,
             MapNames.ForPlaylist(snapshot.Playlist)
-                ?? (snapshot.IsCreative ? "Creative" : null)
+                ?? (snapshot.IsCreative ? "Creative" : null),
+            snapshot.GameSessionId
         );
     }
 

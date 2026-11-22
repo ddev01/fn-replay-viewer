@@ -10,7 +10,7 @@ How to read the tags:
   - `verified-doc`: `docs/replay-data.md` records it as parsed from a real replay.
   - `verified-code`: already flows through this repo's C# and JSON contract.
   - `guess`: plausible, but nobody has dumped a real replay to confirm it is populated. Check first.
-- "Dep" means a new dependency or external tool. The project asks before adding any, and the only network traffic today is the update check, so anything that fetches images or posts data is **opt-in only**.
+- "Dep" means a new dependency or external tool. The project asks before adding any, and the only network traffic today is the update check (plus optional owner-only linking when configured), so anything that fetches images or posts data is **opt-in only**.
 
 ---
 

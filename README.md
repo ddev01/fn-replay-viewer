@@ -25,6 +25,10 @@ The page opens on loopback and shows your most recent finished replay by itself;
 
 Updates are checked at launch and every six hours. A newer release is downloaded and verified in the background, and installs itself the next time Replay Viewer starts. The page shows a banner with an **Update now** button if you would rather restart straight away, and the tray menu offers the same thing. Nothing installs unless the download passes its detached signature check.
 
+### Optional: streamer linking (owner only)
+
+Off unless `%LocalAppData%\ReplayViewer\linking.json` exists, so nothing else changes and nothing is sent. With a file of the form `{"baseUrl": "https://<server>", "token": "<token>"}` the page marks replays whose F9 lookup found no streamer or only weak guesses, and each player gets a pencil to review and correct their Twitch or TikTok link. The token stays in the app: the page only talks to loopback. Read once at start, so restart the app after editing it. Besides the update check, this is the only network traffic.
+
 ## Build
 
 Install [.NET SDK 10.0.401](https://dotnet.microsoft.com/download) (`global.json` pins it, and restore uses the committed `packages.lock.json` files), plus [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`choco install innosetup`) to build the installer. Node is only needed for the frontend checks: if `package.json` is present, run `npm ci` first.

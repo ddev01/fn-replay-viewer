@@ -18,7 +18,8 @@ rather not share publicly — a minimal or synthetic file is usually enough to s
 ## Scope
 
 The app runs as the signed-in user, with no Administrator rights, and never leaves the machine
-except for the update check. Interesting areas, in plain language:
+except for the update check, plus optional owner-only linking when configured
+(a local `linking.json` with a server URL and token; without it the feature is off and sends nothing). Interesting areas, in plain language:
 
 - **Replay file parser.** `.replay` files from the Demos folder are untrusted input from disk,
   parsed by `FortniteReplayReader` in a **child process** (`ReplayParseProcess`,

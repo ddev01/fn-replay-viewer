@@ -8,6 +8,7 @@ export default {
   playlist: "Playlist_ShowdownAlt_Solo",
   teamSize: 1,
   recordedAt: "2026-10-31T20:15:00+00:00",
+  gameSessionId: "0d1e2f30-4a5b-6c7d-8e9f-0a1b2c3d4e5f",
   yourPlacement: 1,
   teamPlacement: 1,
   safeZonesStartTime: 120,

@@ -12,6 +12,7 @@ import {
   themedIcon,
   trackerButton,
 } from "./markup.js";
+import { bindLinkEdit, linkingMarkup } from "./linking.js";
 import {
   emptyTimelineMessage,
   eventSide,
@@ -168,6 +169,7 @@ export function render() {
       row.className = "player";
       if (p.epicId) row.dataset.player = p.epicId.toLowerCase();
       if (idsEqual(p.epicId, state.focusPlayerId)) row.classList.add("highlight");
+      const linking = linkingMarkup(p);
       row.innerHTML = `
         <div>
           <div class="pname-row">
@@ -177,13 +179,16 @@ export function render() {
             ${platformMarkup(p.platform)}
             ${trackerButton(p.name)}
             ${nameFnButton(p.epicId)}
+            ${linking.button}
             ${p.isYou ? `<span class="badge you">you</span>` : ""}
             ${p.isBot ? `<span class="badge">bot</span>` : ""}
             ${p.fill === "fill" ? `<span class="badge fill">fill</span>` : ""}
           </div>
+          ${linking.slot}
         </div>
         <div class="kills">${p.kills}</div>
       `;
+      bindLinkEdit(row, p);
       row.querySelectorAll(".tracker").forEach((el) => {
         el.addEventListener("click", (ev) => ev.stopPropagation());
       });

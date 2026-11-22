@@ -829,3 +829,68 @@ main { padding: 20px 24px 64px; max-width: 1400px; margin: 0 auto; }
   margin-top: 6px;
 }
 .kind-icon { display: inline-flex; align-items: center; }
+
+/* Owner-only streamer linking: nothing below is rendered unless linking.json exists. */
+.link-flag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+.link-flag svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.link-flag.none_found { color: var(--taken); }
+.link-flag.weak_only { color: var(--gold); }
+.link-edit { width: 24px; height: 24px; color: var(--muted); }
+.link-edit svg { width: 14px; height: 14px; }
+.linkinfo-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.lchip {
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.lchip.link { border-color: var(--you); color: var(--you); }
+.lchip.attempt.weak { border-color: var(--gold); color: var(--gold); }
+.lsrc { color: var(--muted); font-size: 11px; }
+.link-dialog {
+  width: min(480px, calc(100vw - 32px));
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+.link-dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
+.link-dialog h2 { margin: 0 0 8px; font-size: 16px; overflow-wrap: anywhere; }
+.link-dialog h3 { margin: 10px 0 4px; font-size: 12px; color: var(--muted); }
+.link-rows { margin: 0; padding: 0; list-style: none; }
+.link-rows li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13px;
+}
+.link-search { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 10px; font-size: 13px; }
+.link-search a { color: var(--accent); }
+.link-form { display: grid; gap: 6px; }
+.link-form label { font-size: 12px; color: var(--muted); }
+.link-actions { display: flex; gap: 8px; }
+.link-msg { min-height: 1.2em; margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
+.link-msg.error { color: var(--taken); }

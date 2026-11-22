@@ -25,7 +25,12 @@ import { emptyFilters, loadHiddenAccounts } from "./demo-filter.js";
  *   visibleDemos: DemoListItem[],
  *   selecting: boolean,
  *   selected: Set<string>,
- *   demosRev: number
+ *   demosRev: number,
+ *   linking: boolean,
+ *   lookups: LinkingLookup[],
+ *   linkFlags: Map<string, string>,
+ *   linkData: Map<string, LinkingPlayer> | null,
+ *   linkLoading: string | null
  * }}
  */
 export const state = {
@@ -51,6 +56,11 @@ export const state = {
   selecting: false,
   selected: new Set(),
   demosRev: 0,
+  linking: false,
+  lookups: [],
+  linkFlags: new Map(),
+  linkData: null,
+  linkLoading: null,
 };
 
 /**
