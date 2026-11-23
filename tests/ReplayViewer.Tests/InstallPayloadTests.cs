@@ -2,7 +2,7 @@ namespace ReplayViewer.Tests;
 
 public sealed class InstallPayloadTests : IDisposable
 {
-    private static readonly string[] Preserved = ["logs", "skins"];
+    private static readonly string[] Preserved = ["logs", "skins", "keep.json"];
     private readonly string _root = Path.Combine(
         Path.GetTempPath(),
         "ReplayViewerTests",
@@ -49,8 +49,11 @@ public sealed class InstallPayloadTests : IDisposable
         Write(Path.Combine(Destination, "unins000.dat"), "installer");
         Write(Path.Combine(Destination, "logs", "replay-viewer.log"), "log");
         Write(Path.Combine(Destination, "skins", "hero.png"), "skin");
+        Write(Path.Combine(Destination, "keep.json"), "owner file");
 
         InstallPayload.Sync(Source, Destination, Preserved);
+
+        Assert.True(File.Exists(Path.Combine(Destination, "keep.json")));
 
         Assert.False(File.Exists(Path.Combine(Destination, "old.dll")));
         Assert.False(Directory.Exists(Path.Combine(Destination, "wwwroot")));

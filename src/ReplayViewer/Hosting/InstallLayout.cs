@@ -8,7 +8,9 @@ internal static class InstallLayout
 {
     // The match cache and its sidebar index live in the install directory: an update must not
     // wipe them, or matches whose replay Fortnite already deleted are lost.
-    internal static readonly string[] PreservedDirectoryNames = ["logs", "cache", "cache-index"];
+    // linking.json is the owner's own file (host and token): the payload never ships it, so a sync
+    // that treated it as stale would silently switch linking off.
+    internal static readonly string[] PreservedDirectoryNames = ["logs", "cache", "cache-index", "linking.json"];
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValueName = "ReplayViewer";
 

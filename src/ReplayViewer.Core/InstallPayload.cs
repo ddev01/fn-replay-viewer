@@ -82,6 +82,12 @@ public static class InstallPayload
                 continue;
             }
 
+            // A preserved name protects a user-owned top-level file just as it does a directory.
+            if (preserved.Contains(name))
+            {
+                continue;
+            }
+
             if (File.Exists(Path.Combine(sourceRoot, name)))
             {
                 continue;
