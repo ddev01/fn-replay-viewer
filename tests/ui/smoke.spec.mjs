@@ -528,3 +528,43 @@ test("closing the sidebar leaves select mode", async ({ page }) => {
   await expect(page.locator("#demos-select-bar")).toBeHidden();
   await expect(page.locator("#demos .demo-check")).toHaveCount(0);
 });
+
+test("the player search outlives opening a replay, and its clear button resets the list", async ({
+  page,
+}) => {
+  const withBob = { ...demos[0], players: ["Bob"] };
+  const withAl = { ...demos[1], players: ["Al"] };
+  await page.route("**/api/demos", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ demos: [withBob, withAl], backfill: false }),
+    })
+  );
+  await page.reload();
+  await page.getByRole("button", { name: "Demos" }).click();
+  await page.locator("#toggle-search").click();
+  await page.locator("#player-search").fill("bob");
+  await expect(page.locator("#demos li")).toHaveCount(1);
+
+  // Opening a replay closes the sidebar; the term must still be there to try the next one.
+  await page.locator("#demos li button").first().click();
+  await page.getByRole("button", { name: "Demos" }).click();
+  await expect(page.locator("#player-search")).toHaveValue("bob");
+  await expect(page.locator("#demos li")).toHaveCount(1);
+
+  await page.locator("#player-search-clear").click();
+  await expect(page.locator("#player-search")).toHaveValue("");
+  await expect(page.locator("#demos li")).toHaveCount(2);
+});
+
+test("Hide bots is a remembered sidebar setting that governs the roster", async ({ page }) => {
+  const bots = () => page.locator("#roster .badge", { hasText: "bot" });
+  await expect(bots()).toHaveCount(0);
+  await page.getByRole("button", { name: "Demos" }).click();
+  await page.locator("#toggle-settings").click();
+  await page.locator("#hide-bots").uncheck();
+  await expect(bots().first()).toBeVisible();
+  await page.reload();
+  await expect(bots().first()).toBeVisible();
+});

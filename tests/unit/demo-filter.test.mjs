@@ -6,6 +6,7 @@ import {
   classifyPlaylist,
   emptyFilters,
   filterDemos,
+  playerHits,
 } from "../../src/ReplayViewer/wwwroot/demo-filter.js";
 
 const demo = (/** @type {object} */ over) => ({
@@ -84,4 +85,30 @@ test("a switched-off account hides its replays and any whose account is not know
     accountChoices(demos).map((a) => a.id),
     ["a", "m"]
   );
+});
+
+test("playerHits finds a part of a name and forgives typos, but not short guesses", () => {
+  const players = ["UNIQUE FRVR 193!", "TikTok Space Aura FN"];
+  const hit = (/** @type {string} */ q) => playerHits(q, players).names;
+  assert.deepEqual(hit("Unique"), [players[0]]);
+  assert.deepEqual(hit("aura"), [players[1]]);
+  assert.deepEqual(hit("tiktok spce aura"), [players[1]]);
+  assert.deepEqual(hit("uniqe"), [players[0]]);
+  assert.deepEqual(hit("bob"), []);
+  assert.deepEqual(playerHits("aura", undefined).names, []);
+  assert.deepEqual(playerHits("  !", players).names, []);
+});
+
+test("filterDemos keeps only the closest matches", () => {
+  const demos = [
+    demo({ name: "1", players: ["Bobby"] }),
+    demo({ name: "2", players: ["Bobb"] }),
+    demo({ name: "3", players: ["Al"] }),
+    demo({ name: "4" }),
+  ];
+  const names = (/** @type {string} */ player) =>
+    filterDemos(demos, { ...emptyFilters(), player }).map((d) => d.name);
+  assert.deepEqual(names("bobby"), ["1"]);
+  assert.deepEqual(names("bobb"), ["1", "2"]);
+  assert.deepEqual(names("zzzz"), []);
 });
