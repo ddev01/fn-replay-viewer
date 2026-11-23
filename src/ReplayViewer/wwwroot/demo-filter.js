@@ -11,7 +11,8 @@
  *   to: string,
  *   minKills: string,
  *   maxKills: string,
- *   hiddenAccounts: Set<string>
+ *   hiddenAccounts: Set<string>,
+ *   player: string
  * }} DemoFilters
  */
 
@@ -27,7 +28,60 @@ export function emptyFilters() {
     minKills: "",
     maxKills: "",
     hiddenAccounts: new Set(),
+    player: "",
   };
+}
+
+/** Lower case letters and digits only, so "Unique FRVR 193!" and "uniquefrvr193" compare equal. */
+const squash = (/** @type {string} */ s) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+
+/**
+ * The fewest typos (insert, delete, replace) with which `pattern` occurs anywhere in `text`: the
+ * Sellers edit-distance search, where a match may start and end anywhere in the text.
+ * @param {string} text
+ * @param {string} pattern
+ * @returns {number}
+ */
+function editDistance(text, pattern) {
+  const m = pattern.length;
+  const col = Array.from({ length: m + 1 }, (_, i) => i);
+  let best = m;
+  for (const ch of text) {
+    let diag = 0;
+    for (let i = 1; i <= m; i += 1) {
+      const above = col[i];
+      col[i] = Math.min(above + 1, col[i - 1] + 1, diag + (pattern[i - 1] === ch ? 0 : 1));
+      diag = above;
+    }
+    best = Math.min(best, col[m]);
+  }
+  return best;
+}
+
+/**
+ * Which of the names a query hits, and how many typos away the closest ones are. A part of a name
+ * is enough ("unique", "aura"); a longer query forgives a typo or two, a short one stays exact or
+ * every three letters would match half the lobby.
+ * @param {string} query
+ * @param {readonly string[] | undefined} players
+ * @returns {{ distance: number, names: string[] }} distance is Infinity when nothing is close
+ */
+export function playerHits(query, players) {
+  const q = squash(query);
+  // An empty pattern occurs everywhere at distance 0, which would hit every name.
+  if (!q) return { distance: Infinity, names: [] };
+  const allowed = q.length <= 3 ? 0 : q.length <= 6 ? 1 : 2;
+  let distance = Infinity;
+  /** @type {string[]} */
+  let names = [];
+  for (const name of players ?? []) {
+    const d = editDistance(squash(name), q);
+    if (d > allowed || d > distance) continue;
+    if (d < distance) names = [];
+    distance = d;
+    names.push(name);
+  }
+  return { distance, names };
 }
 
 const HIDDEN_KEY = "replayViewer.hiddenAccounts";
@@ -158,7 +212,13 @@ export function matchesFilters(demo, f) {
  * @returns {DemoListItem[]}
  */
 export function filterDemos(demos, filters) {
-  return demos.filter((demo) => matchesFilters(demo, filters));
+  const kept = demos.filter((demo) => matchesFilters(demo, filters));
+  if (!squash(filters.player)) return kept;
+  // Accuracy first: only the replays holding the closest match stay, so "aura" does not drag in
+  // every "Aur..." once someone really is called Aura.
+  const scored = kept.map((demo) => ({ demo, d: playerHits(filters.player, demo.players).distance }));
+  const best = Math.min(...scored.map((s) => s.d));
+  return scored.filter((s) => s.d === best && best !== Infinity).map((s) => s.demo);
 }
 
 /**
@@ -199,5 +259,6 @@ export function filtersKey(f) {
     f.minKills,
     f.maxKills,
     [...f.hiddenAccounts],
+    f.player,
   ]);
 }

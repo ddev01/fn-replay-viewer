@@ -17,6 +17,19 @@
         <h2>Demos <span id="demos-count" class="demos-count"></span></h2>
         <div class="demos-actions">
           <button
+            id="toggle-search"
+            type="button"
+            class="icon-btn"
+            aria-expanded="false"
+            aria-controls="demos-search"
+            aria-label="Search player"
+            title="Search player"
+          >
+            <svg class="solid" viewBox="0 0 640 640" aria-hidden="true" focusable="false">
+              <path d="M480 272C480 317.9 465.1 360.3 440 394.7L566.6 521.4C579.1 533.9 579.1 554.2 566.6 566.7C554.1 579.2 533.8 579.2 521.3 566.7L394.7 440C360.3 465.1 317.9 480 272 480C157.1 480 64 386.9 64 272C64 157.1 157.1 64 272 64C386.9 64 480 157.1 480 272zM272 416C351.5 416 416 351.5 416 272C416 192.5 351.5 128 272 128C192.5 128 128 192.5 128 272C128 351.5 192.5 416 272 416z" />
+            </svg>
+          </button>
+          <button
             id="toggle-filters"
             type="button"
             class="icon-btn"
@@ -43,12 +56,40 @@
               <path d="M384 32c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96C0 60.7 28.7 32 64 32l320 0zM342 145.7c-10.7-7.8-25.7-5.4-33.5 5.3L189.1 315.2 137 263.1c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9l72 72c5 5 11.9 7.5 18.8 7s13.4-4.1 17.5-9.8L347.3 179.2c7.8-10.7 5.4-25.7-5.3-33.5z" />
             </svg>
           </button>
+          <button
+            id="toggle-settings"
+            type="button"
+            class="icon-btn"
+            aria-expanded="false"
+            aria-controls="demos-settings"
+            aria-label="Settings"
+            title="Settings"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
           <button id="close-demos" type="button" class="icon-btn" aria-label="Close" title="Close">
             <svg class="solid" viewBox="0 0 640 640" aria-hidden="true" focusable="false">
               <path d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z" />
             </svg>
           </button>
         </div>
+      </div>
+
+      <div id="demos-search" class="demos-search" hidden>
+        <input type="search" id="player-search" class="field" placeholder="Search player" aria-label="Search player" autocomplete="off" spellcheck="false" />
+        <button id="player-search-clear" type="button" class="icon-btn small" aria-label="Clear search" title="Clear search" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
+
+      <div id="demos-settings" class="demos-filters" hidden>
+        <span class="filters-title">Settings</span>
+        <label class="check-label"><input type="checkbox" id="hide-bots" class="check" checked /><span>Hide bots</span></label>
       </div>
 
       <div id="demos-select-bar" class="select-bar" hidden>
@@ -156,7 +197,6 @@
         </div>
         <button id="update-apply" type="button" class="primary">Update now</button>
       </div>
-      <section id="summary" class="summary" hidden></section>
       <section id="empty" class="empty-state" hidden>
         <p id="empty-text"></p>
         <button id="empty-retry" type="button" class="primary">Try again</button>
@@ -187,29 +227,22 @@
             <path d="M4 19h16" />
           </svg>
         </button>
-        <label class="search">
-          <input id="search" type="search" placeholder="Player name" aria-label="Search roster" />
-        </label>
         <div class="sort" role="group" aria-label="Sort teams">
-          <span class="sort-label">Sort teams</span>
+          <svg class="sort-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="m3 16 4 4 4-4M7 20V4M11 4h10M11 8h7M11 12h4" />
+          </svg>
           <button type="button" id="sort-placement" class="active" aria-pressed="true">Placement</button>
           <button type="button" id="sort-kills" aria-pressed="false">Kills</button>
         </div>
-        <label class="toggle">
-          <input type="checkbox" id="show-bots" />
-          Show bots
-        </label>
-        <span id="dev-badge" class="dev-badge" hidden></span>
       </div>
       <div id="roster" class="roster"></div>
       <section class="timelines" id="timeline-section">
         <div class="tabs" role="group" aria-label="Timeline view">
-          <button type="button" data-tab="game" aria-pressed="false">Game</button>
           <button type="button" data-tab="you" class="active" aria-pressed="true">You</button>
           <button type="button" data-tab="team" aria-pressed="false">Team</button>
+          <button type="button" data-tab="game" aria-pressed="false">Game</button>
         </div>
         <div class="filters">
-          <label><input type="checkbox" id="hide-bots" checked /> Hide bots in timeline</label>
           <label><input type="checkbox" id="only-you" /> Only fights that include you</label>
           <span id="you-filters" hidden>
             <label><input type="checkbox" id="flt-kills" checked /> Kills</label>
@@ -225,6 +258,7 @@
         </div>
         <ol id="timeline" class="timeline"></ol>
       </section>
+      <section id="summary" class="summary" hidden></section>
     </main>
     <script type="module" src="/app.js"></script>
   </body>

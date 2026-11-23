@@ -17,7 +17,7 @@ import {
 import { idsEqual } from "./format.js";
 import { closeLinkDialog, loadReplayLinks, renderLinkInfo } from "./linking.js";
 import { render, renderTimeline } from "./view.js";
-import { state } from "./state.js";
+import { saveHideBots, state } from "./state.js";
 
 const REPLAY_PARAM = "replay";
 
@@ -187,14 +187,12 @@ $("empty-retry").addEventListener("click", () => {
 });
 $("empty-demos").addEventListener("click", () => setDemosOpen(true));
 
-// Rebuilding the roster on every keystroke is wasted work while someone is still typing.
-/** @type {number | undefined} */
-let searchTimer;
-$input("search").addEventListener("input", () => {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(render, 100);
+$input("hide-bots").checked = state.hideBots;
+$input("hide-bots").addEventListener("change", () => {
+  state.hideBots = $input("hide-bots").checked;
+  saveHideBots(state.hideBots);
+  render();
 });
-$input("show-bots").addEventListener("change", render);
 $("sort-placement").addEventListener("click", () => {
   state.sort = "placement";
   render();
@@ -208,16 +206,9 @@ $("close-demos").addEventListener("click", () => setDemosOpen(false));
 $("demos-backdrop").addEventListener("click", () => setDemosOpen(false));
 $("demos-panel").addEventListener("scroll", pageInDemos);
 initDemoTools();
-[
-  "hide-bots",
-  "only-you",
-  "flt-kills",
-  "flt-knocks",
-  "flt-deaths",
-  "team-kills",
-  "team-knocks",
-  "team-deaths",
-].forEach((id) => $input(id).addEventListener("change", renderTimeline));
+["only-you", "flt-kills", "flt-knocks", "flt-deaths", "team-kills", "team-knocks", "team-deaths"].forEach(
+  (id) => $input(id).addEventListener("change", renderTimeline)
+);
 tabButtons().forEach((btn) => {
   btn.addEventListener("click", () => {
     const tab = btn.dataset.tab;
@@ -241,10 +232,8 @@ document.addEventListener("keydown", () => refreshDemos(false));
 fetch("/api/config")
   .then((res) => (res.ok ? res.json() : null))
   .then((/** @type {ApiConfig | null} */ cfg) => {
-    // A local dev build says so on the page, so it is never mistaken for the release.
+    // The tab title is the only on-page sign of a local dev build.
     if (cfg && cfg.dev) {
-      $("dev-badge").hidden = false;
-      $("dev-badge").textContent = `DEV ${cfg.version}`;
       document.title = "Replay Viewer (dev)";
     }
     if (cfg && cfg.nameFnPublicUrl) state.nameFnPublicUrl = String(cfg.nameFnPublicUrl).replace(/\/$/, "");

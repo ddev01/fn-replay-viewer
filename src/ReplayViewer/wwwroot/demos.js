@@ -370,7 +370,11 @@ function syncMapChoices() {
 }
 
 function readFilters() {
-  const next = { ...emptyFilters(), hiddenAccounts: state.filters.hiddenAccounts };
+  const next = {
+    ...emptyFilters(),
+    hiddenAccounts: state.filters.hiddenAccounts,
+    player: state.filters.player,
+  };
   $("filters-form")
     .querySelectorAll("input[data-filter]")
     .forEach((node) => {
@@ -492,10 +496,34 @@ function maskAccounts() {
 /** Everything a streamer would not want left open: names masked, tools folded away. */
 function collapseTools() {
   maskAccounts();
+  setPanel("demos-settings", "toggle-settings", false);
   setPanel("demos-filters", "toggle-filters", false);
   setPanel("filter-accounts", "toggle-accounts", false);
   $("demos-confirm").hidden = true;
   if (state.selecting) setSelecting(false);
+}
+
+/**
+ * Closing the sidebar leaves the search alone, so a second replay can be tried; only the user
+ * closing the box (or its clear button) drops the term.
+ * @param {boolean} open
+ */
+function setSearch(open) {
+  setPanel("demos-search", "toggle-search", open);
+  const input = /** @type {HTMLInputElement} */ ($("player-search"));
+  if (open) input.focus();
+  else if (state.filters.player) {
+    input.value = "";
+    setPlayerSearch("");
+  }
+}
+
+/** @param {string} player */
+function setPlayerSearch(player) {
+  $("player-search-clear").hidden = player === "";
+  state.filters = { ...state.filters, player };
+  state.demosRev += 1;
+  applyFilters();
 }
 
 /** @param {string} panelId @param {string} buttonId @param {boolean} open */
@@ -568,6 +596,18 @@ export function initDemoTools() {
     form.reset();
     readFilters();
   });
+  $("toggle-search").addEventListener("click", () => setSearch($("demos-search").hidden === true));
+  $("player-search").addEventListener("input", (ev) =>
+    setPlayerSearch(/** @type {HTMLInputElement} */ (ev.target).value)
+  );
+  $("player-search-clear").addEventListener("click", () => {
+    /** @type {HTMLInputElement} */ ($("player-search")).value = "";
+    setPlayerSearch("");
+    $("player-search").focus();
+  });
+  $("toggle-settings").addEventListener("click", () =>
+    setPanel("demos-settings", "toggle-settings", $("demos-settings").hidden === true)
+  );
   $("toggle-filters").addEventListener("click", () =>
     setPanel("demos-filters", "toggle-filters", $("demos-filters").hidden === true)
   );

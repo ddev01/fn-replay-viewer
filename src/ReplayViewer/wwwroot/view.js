@@ -1,5 +1,6 @@
 // @ts-check
 // Renders the match: summary chips, roster cards and the timeline.
+import { playerHits } from "./demo-filter.js";
 import { $, $input, scrollBehavior, tabButtons, setPressed } from "./dom.js";
 import { cssEscape, escapeHtml, formatTime, idsEqual } from "./format.js";
 import {
@@ -46,7 +47,7 @@ function readView() {
       knocks: $input("team-knocks").checked,
       deaths: $input("team-deaths").checked,
     },
-    hideBots: $input("hide-bots").checked,
+    hideBots: state.hideBots,
     onlyYou: $input("only-you").checked,
   };
 }
@@ -114,6 +115,10 @@ function renderTeamPlayerFilters(match) {
   }
 }
 
+/** The match the page last scrolled to a found player in, so a re-render does not scroll again. */
+/** @type {MatchDocument | null} */
+let scrolledToFound = null;
+
 export function render() {
   const match = state.match;
   if (!match) return;
@@ -134,15 +139,18 @@ export function render() {
   setPressed($("sort-placement"), state.sort === "placement");
   setPressed($("sort-kills"), state.sort === "kills");
 
-  const q = $input("search").value.trim().toLowerCase();
-  const showBots = $input("show-bots").checked;
   const roster = $("roster");
   roster.innerHTML = "";
+  // The sidebar search: whoever it matched in this replay gets a red pulse so the eye lands on them.
+  const found = new Set(
+    playerHits(
+      state.filters.player,
+      match.teams.flatMap((t) => t.players.filter((p) => !p.isYou).map((p) => p.name))
+    ).names
+  );
   for (const team of sortTeams(match.teams, state.sort)) {
     const visiblePlayers = team.players.filter((p) => {
-      if (!showBots && p.isBot) return false;
-      if (q && !p.name.toLowerCase().includes(q)) return false;
-      return true;
+      return !(state.hideBots && p.isBot);
     });
     if (visiblePlayers.length === 0) continue;
 
@@ -169,6 +177,7 @@ export function render() {
       row.className = "player";
       if (p.epicId) row.dataset.player = p.epicId.toLowerCase();
       if (idsEqual(p.epicId, state.focusPlayerId)) row.classList.add("highlight");
+      if (found.has(p.name) && !p.isYou) row.classList.add("found");
       const linking = linkingMarkup(p);
       row.innerHTML = `
         <div>
@@ -199,6 +208,10 @@ export function render() {
       card.appendChild(row);
     }
     roster.appendChild(card);
+  }
+  if (match !== scrolledToFound) {
+    scrolledToFound = match;
+    roster.querySelector(".found")?.scrollIntoView({ behavior: scrollBehavior(), block: "center" });
   }
 
   $("you-filters").hidden = state.tab !== "you";

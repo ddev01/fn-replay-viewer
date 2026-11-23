@@ -2,6 +2,26 @@
 // The one mutable object the page runs on, and the two selection helpers that change it.
 import { emptyFilters, loadHiddenAccounts } from "./demo-filter.js";
 
+const HIDE_BOTS_KEY = "replayViewer.hideBots";
+
+/** Bots are hidden unless the user switched that off. Best effort: storage can be blocked. */
+function loadHideBots() {
+  try {
+    return globalThis.localStorage?.getItem(HIDE_BOTS_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+/** @param {boolean} on */
+export function saveHideBots(on) {
+  try {
+    globalThis.localStorage?.setItem(HIDE_BOTS_KEY, on ? "1" : "0");
+  } catch {
+    /* storage blocked: the choice lasts until the page closes */
+  }
+}
+
 /**
  * @type {{
  *   match: MatchDocument | null,
@@ -26,6 +46,7 @@ import { emptyFilters, loadHiddenAccounts } from "./demo-filter.js";
  *   selecting: boolean,
  *   selected: Set<string>,
  *   demosRev: number,
+ *   hideBots: boolean,
  *   linking: boolean,
  *   lookups: LinkingLookup[],
  *   linkFlags: Map<string, string>,
@@ -56,6 +77,7 @@ export const state = {
   selecting: false,
   selected: new Set(),
   demosRev: 0,
+  hideBots: loadHideBots(),
   linking: false,
   lookups: [],
   linkFlags: new Map(),
