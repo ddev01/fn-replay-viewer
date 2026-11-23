@@ -220,9 +220,9 @@ no bundler and no build step, so what you edit is what ships.
   player state, so the app resolves that reference itself (see 3.4), for Creative matches too.
 - **Creative matches** carry no playlist or map data; the replay header says a match is Creative,
   so the sidebar and summary show "Creative" as the map.
-- **Tabs**: Game (every knock/finish), You (your events), Team (the selected squad).
+- **Tabs**: You (your events), Team (the selected squad), Game (every knock/finish).
   An empty list explains itself rather than showing a blank panel.
-- **Search / Sort / Show bots** filter the roster client-side.
+- **Sort** orders the roster client-side. **Hide bots** (gear icon in the sidebar, remembered) hides bots in the roster and the timeline. The match stats sit below the timeline.
 
 Because the page runs under `style-src 'self'`, icon URLs live in CSS classes
 (`.icon-kill`, `.icon-external`, …) — an inline `style="--icon:…"` is blocked and renders a solid
