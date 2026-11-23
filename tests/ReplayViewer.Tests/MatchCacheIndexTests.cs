@@ -44,6 +44,19 @@ public sealed class MatchCacheIndexTests : IDisposable
     }
 
     [Fact]
+    public void Searchable_players_skip_the_recorder_and_bots_but_keep_anonymous_ones()
+    {
+        static RosterPlayer P(string name, bool you = false, bool bot = false, bool anon = false) =>
+            new(name.ToLowerInvariant(), name, "WIN", 0, you, bot, false, anon, FillStatus.None);
+        var match = Match() with
+        {
+            Teams = [new TeamRoster(1, 3, [P("Me", you: true), P("Bob"), P("bob"), P("Bot", bot: true), P("Anon", anon: true)])],
+        };
+
+        Assert.Equal(["Bob", "Anon"], MatchCacheIndex.PlayersOf(match));
+    }
+
+    [Fact]
     public void Cache_key_survives_the_replay_file()
     {
         var index = new MatchCacheIndex(_directory);

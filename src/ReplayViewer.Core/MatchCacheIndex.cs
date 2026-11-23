@@ -18,7 +18,8 @@ public sealed record CachedMatch(
     bool Failed = false,
     int Schema = 0,
     string? AccountId = null,
-    string? AccountName = null
+    string? AccountName = null,
+    IReadOnlyList<string>? Players = null
 );
 
 /// <summary>
@@ -32,7 +33,7 @@ public sealed class MatchCacheIndex
     /// Bumped when a saved summary field changes meaning, so entries written by an older build
     /// are rebuilt from the cached match instead of showing the old value.
     /// </summary>
-    public const int CurrentSchema = 6;
+    public const int CurrentSchema = 8;
 
     private const string IndexFileName = "index.json";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
@@ -100,10 +101,27 @@ public sealed class MatchCacheIndex
                 players > 0 ? players : null,
                 Schema: CurrentSchema,
                 AccountId: account.Id,
-                AccountName: account.Name
+                AccountName: account.Name,
+                Players: PlayersOf(match)
             );
             WriteIndex();
         }
+    }
+
+    /// <summary>
+    /// Who the sidebar's player search looks through: every named player but the recorder and bots.
+    /// "Anonymous" players still have a name in the replay, so they stay searchable.
+    /// </summary>
+    public static IReadOnlyList<string> PlayersOf(MatchDocument match)
+    {
+        ArgumentNullException.ThrowIfNull(match);
+
+        return match
+            .Teams.SelectMany(t => t.Players)
+            .Where(p => !p.IsYou && !p.IsBot && !string.IsNullOrWhiteSpace(p.Name))
+            .Select(p => p.Name)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     /// <summary>
@@ -122,7 +140,11 @@ public sealed class MatchCacheIndex
     /// Adds the account to an entry written before accounts were stored, without touching the
     /// summary fields: a re-save from the cached match would lose what only the replay file knew.
     /// </summary>
-    public void UpdateAccount(string name, (string? Id, string? Name) account)
+    public void UpdateAccount(
+        string name,
+        (string? Id, string? Name) account,
+        IReadOnlyList<string>? players = null
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
@@ -134,6 +156,7 @@ public sealed class MatchCacheIndex
                 {
                     AccountId = account.Id,
                     AccountName = account.Name,
+                    Players = players ?? entry.Players,
                     Schema = CurrentSchema,
                 };
                 WriteIndex();

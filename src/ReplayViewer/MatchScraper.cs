@@ -97,7 +97,8 @@ internal sealed class MatchScraper : IMatchScraper
                     Cached: true,
                     TotalPlayers: entry.TotalPlayers,
                     AccountId: entry.AccountId,
-                    AccountName: entry.AccountName
+                    AccountName: entry.AccountName,
+                    Players: entry.Players
                 )
             );
         }
@@ -241,7 +242,11 @@ internal sealed class MatchScraper : IMatchScraper
 
             if (MatchCache.TryRead(_cacheRoot, entry.CacheKey, out var cached) && cached is not null)
             {
-                _index.UpdateAccount(entry.Name, MatchCacheIndex.AccountOf(cached));
+                _index.UpdateAccount(
+                    entry.Name,
+                    MatchCacheIndex.AccountOf(cached),
+                    MatchCacheIndex.PlayersOf(cached)
+                );
             }
         }
     }
@@ -475,6 +480,7 @@ internal sealed class MatchScraper : IMatchScraper
             TotalPlayers = entry.TotalPlayers,
             AccountId = entry.AccountId,
             AccountName = entry.AccountName,
+            Players = entry.Players,
         };
     }
 

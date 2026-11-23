@@ -134,7 +134,8 @@ public sealed record DemoListItem(
     int? TotalPlayers = null,
     bool Unreadable = false,
     string? AccountId = null,
-    string? AccountName = null
+    string? AccountName = null,
+    IReadOnlyList<string>? Players = null
 );
 
 public sealed record ScrapeResult(MatchDocument Match, bool Cached);

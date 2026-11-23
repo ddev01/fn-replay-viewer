@@ -94,6 +94,8 @@ interface DemoListItem {
   unreadable: boolean;
   accountId?: string;
   accountName?: string;
+  /** Display names of the other real players in the match; absent until the replay is parsed. */
+  players?: string[];
 }
 
 /** MatchRoutes.cs GET /api/demos */
